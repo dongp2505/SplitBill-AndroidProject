@@ -11,7 +11,8 @@ import week11.st560151.finalproject.data.repository.AuthRepository
 import week11.st560151.finalproject.ui.state.UiState
 
 class AuthViewModel(
-    private val repository: AuthRepository = AuthRepository()
+    private val repository: AuthRepository =
+        AuthRepository()
 ) : ViewModel() {
 
     private val _loginState =
@@ -62,14 +63,16 @@ class AuthViewModel(
     }
 
     fun register(
+        displayName: String,
         email: String,
         password: String,
         confirmPassword: String
     ) {
         val error = validateRegistration(
-            email,
-            password,
-            confirmPassword
+            displayName = displayName,
+            email = email,
+            password = password,
+            confirmPassword = confirmPassword
         )
 
         if (error != null) {
@@ -81,14 +84,19 @@ class AuthViewModel(
             _registerState.value = UiState.Loading
 
             _registerState.value = repository
-                .register(email, password)
+                .register(
+                    displayName = displayName,
+                    email = email,
+                    password = password
+                )
                 .fold(
                     onSuccess = {
                         UiState.Success(Unit)
                     },
                     onFailure = {
                         UiState.Error(
-                            it.message ?: "Registration failed."
+                            it.message
+                                ?: "Registration failed."
                         )
                     }
                 )
@@ -104,9 +112,14 @@ class AuthViewModel(
             return
         }
 
-        if (!Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
+        if (!Patterns.EMAIL_ADDRESS
+                .matcher(email)
+                .matches()
+        ) {
             _resetState.value =
-                UiState.Error("Enter a valid email address.")
+                UiState.Error(
+                    "Enter a valid email address."
+                )
             return
         }
 
@@ -164,7 +177,10 @@ class AuthViewModel(
             return "Email is required."
         }
 
-        if (!Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
+        if (!Patterns.EMAIL_ADDRESS
+                .matcher(email)
+                .matches()
+        ) {
             return "Enter a valid email address."
         }
 
@@ -176,15 +192,23 @@ class AuthViewModel(
     }
 
     private fun validateRegistration(
+        displayName: String,
         email: String,
         password: String,
         confirmPassword: String
     ): String? {
+        if (displayName.isBlank()) {
+            return "Full name is required."
+        }
+
         if (email.isBlank()) {
             return "Email is required."
         }
 
-        if (!Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
+        if (!Patterns.EMAIL_ADDRESS
+                .matcher(email)
+                .matches()
+        ) {
             return "Enter a valid email address."
         }
 

@@ -44,6 +44,10 @@ fun RegisterScreen(
     onRegisterSuccess: () -> Unit,
     onBackClick: () -> Unit
 ) {
+    var displayName by remember {
+        mutableStateOf("")
+    }
+
     var email by remember {
         mutableStateOf("")
     }
@@ -73,7 +77,11 @@ fun RegisterScreen(
                 },
                 navigationIcon = {
                     IconButton(
-                        onClick = onBackClick
+                        onClick = {
+                            authViewModel.resetRegisterState()
+                            onBackClick()
+                        },
+                        enabled = state !is UiState.Loading
                     ) {
                         Icon(
                             imageVector =
@@ -107,6 +115,30 @@ fun RegisterScreen(
 
             Spacer(
                 modifier = Modifier.height(24.dp)
+            )
+
+            OutlinedTextField(
+                value = displayName,
+                onValueChange = {
+                    displayName = it
+                },
+                label = {
+                    Text("Full Name")
+                },
+                placeholder = {
+                    Text("Enter your full name")
+                },
+                singleLine = true,
+                enabled = state !is UiState.Loading,
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Text,
+                    imeAction = ImeAction.Next
+                ),
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(
+                modifier = Modifier.height(12.dp)
             )
 
             OutlinedTextField(
@@ -196,6 +228,7 @@ fun RegisterScreen(
             Button(
                 onClick = {
                     authViewModel.register(
+                        displayName = displayName.trim(),
                         email = email.trim(),
                         password = password,
                         confirmPassword = confirmPassword
@@ -214,7 +247,10 @@ fun RegisterScreen(
             }
 
             TextButton(
-                onClick = onBackClick,
+                onClick = {
+                    authViewModel.resetRegisterState()
+                    onBackClick()
+                },
                 enabled = state !is UiState.Loading
             ) {
                 Text("Already have an account? Login")

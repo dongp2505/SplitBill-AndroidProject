@@ -22,15 +22,21 @@ fun AppNavGraph(
     navController: NavHostController,
     authViewModel: AuthViewModel
 ) {
-    NavHost(
-        navController = navController,
-        startDestination = if (authViewModel.isSignedIn()) {
+    val startDestination =
+        if (authViewModel.isSignedIn()) {
             Screen.Home.route
         } else {
             Screen.Login.route
         }
+
+    NavHost(
+        navController = navController,
+        startDestination = startDestination
     ) {
 
+        /*
+         * LOGIN SCREEN
+         */
         composable(
             route = Screen.Login.route
         ) {
@@ -63,6 +69,9 @@ fun AppNavGraph(
             )
         }
 
+        /*
+         * REGISTER SCREEN
+         */
         composable(
             route = Screen.Register.route
         ) {
@@ -88,6 +97,9 @@ fun AppNavGraph(
             )
         }
 
+        /*
+         * FORGOT PASSWORD SCREEN
+         */
         composable(
             route = Screen.ForgotPassword.route
         ) {
@@ -101,6 +113,9 @@ fun AppNavGraph(
             )
         }
 
+        /*
+         * HOME SCREEN
+         */
         composable(
             route = Screen.Home.route
         ) {
@@ -133,6 +148,9 @@ fun AppNavGraph(
             )
         }
 
+        /*
+         * GROUPS SCREEN
+         */
         composable(
             route = Screen.Groups.route
         ) {
@@ -143,11 +161,15 @@ fun AppNavGraph(
             )
         }
 
+        /*
+         * SETTLEMENT SCREEN
+         */
         composable(
             route = Screen.Settlement.route
         ) {
             val activity =
-                LocalContext.current.findFragmentActivity()
+                LocalContext.current
+                    .findFragmentActivity()
 
             if (activity != null) {
                 SettlementScreen(
@@ -170,13 +192,20 @@ fun AppNavGraph(
     }
 }
 
-private tailrec fun Context.findFragmentActivity(): FragmentActivity? {
+private tailrec fun Context.findFragmentActivity():
+        FragmentActivity? {
+
     return when (this) {
-        is FragmentActivity -> this
+        is FragmentActivity -> {
+            this
+        }
 
-        is ContextWrapper ->
+        is ContextWrapper -> {
             baseContext.findFragmentActivity()
+        }
 
-        else -> null
+        else -> {
+            null
+        }
     }
 }

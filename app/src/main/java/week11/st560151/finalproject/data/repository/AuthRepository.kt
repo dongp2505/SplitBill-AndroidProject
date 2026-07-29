@@ -2,32 +2,58 @@ package week11.st560151.finalproject.data.repository
 
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
+import com.google.firebase.auth.userProfileChangeRequest
+import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.tasks.await
+import week11.st560151.finalproject.data.model.User
 
 class AuthRepository(
-    private val firebaseAuth: FirebaseAuth = FirebaseAuth.getInstance()
+    private val auth: FirebaseAuth =
+        FirebaseAuth.getInstance(),
+    private val firestore: FirebaseFirestore =
+        FirebaseFirestore.getInstance()
 ) {
 
     suspend fun register(
+        displayName: String,
         email: String,
         password: String
     ): Result<FirebaseUser> {
         return try {
-            val authResult = firebaseAuth
+            val result = auth
                 .createUserWithEmailAndPassword(
                     email.trim(),
                     password
                 )
                 .await()
 
-            val user = authResult.user
-                ?: return Result.failure(
-                    IllegalStateException(
-                        "Firebase did not return a user."
-                    )
+            val firebaseUser = result.user
+                ?: throw IllegalStateException(
+                    "Firebase did not return a user."
                 )
 
-            Result.success(user)
+            val profileUpdates = userProfileChangeRequest {
+                this.displayName = displayName.trim()
+            }
+
+            firebaseUser
+                .updateProfile(profileUpdates)
+                .await()
+
+            val user = User(
+                uid = firebaseUser.uid,
+                displayName = displayName.trim(),
+                email = email.trim().lowercase(),
+                createdAt = System.currentTimeMillis()
+            )
+
+            firestore
+                .collection("users")
+                .document(firebaseUser.uid)
+                .set(user)
+                .await()
+
+            Result.success(firebaseUser)
         } catch (exception: Exception) {
             Result.failure(exception)
         }
@@ -38,18 +64,16 @@ class AuthRepository(
         password: String
     ): Result<FirebaseUser> {
         return try {
-            val authResult = firebaseAuth
+            val result = auth
                 .signInWithEmailAndPassword(
                     email.trim(),
                     password
                 )
                 .await()
 
-            val user = authResult.user
-                ?: return Result.failure(
-                    IllegalStateException(
-                        "Firebase did not return a user."
-                    )
+            val user = result.user
+                ?: throw IllegalStateException(
+                    "Firebase did not return a user."
                 )
 
             Result.success(user)
@@ -62,7 +86,7 @@ class AuthRepository(
         email: String
     ): Result<Unit> {
         return try {
-            firebaseAuth
+            auth
                 .sendPasswordResetEmail(email.trim())
                 .await()
 
@@ -72,11 +96,11 @@ class AuthRepository(
         }
     }
 
-    fun logout() {
-        firebaseAuth.signOut()
+    fun getCurrentUser(): FirebaseUser? {
+        return auth.currentUser
     }
 
-    fun getCurrentUser(): FirebaseUser? {
-        return firebaseAuth.currentUser
+    fun logout() {
+        auth.signOut()
     }
 }
