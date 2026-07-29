@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1073080235955",
+    "project_id": "splitbill-androidproject",
+    "storage_bucket": "splitbill-androidproject.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1073080235955:android:52ea30ad88911177573dc6",
+        "android_client_info": {
+          "package_name": "week11.st560151.finalproject"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBMQ2aeS8OX5HCuDtFR47rvPYQDoy1z62A"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
