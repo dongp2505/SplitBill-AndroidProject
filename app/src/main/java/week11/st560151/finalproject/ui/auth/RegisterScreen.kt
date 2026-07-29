@@ -1,26 +1,17 @@
 package week11.st560151.finalproject.ui.auth
 
-import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -32,33 +23,26 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import week11.st560151.finalproject.ui.components.AppPasswordField
+import week11.st560151.finalproject.ui.components.AppTextField
+import week11.st560151.finalproject.ui.components.CircleBackButton
+import week11.st560151.finalproject.ui.components.ErrorText
+import week11.st560151.finalproject.ui.components.InlineLink
+import week11.st560151.finalproject.ui.components.PrimaryButton
 import week11.st560151.finalproject.ui.state.UiState
 import week11.st560151.finalproject.viewmodel.AuthViewModel
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RegisterScreen(
     authViewModel: AuthViewModel,
     onRegisterSuccess: () -> Unit,
     onBackClick: () -> Unit
 ) {
-    var displayName by remember {
-        mutableStateOf("")
-    }
-
-    var email by remember {
-        mutableStateOf("")
-    }
-
-    var password by remember {
-        mutableStateOf("")
-    }
-
-    var confirmPassword by remember {
-        mutableStateOf("")
-    }
+    var displayName by remember { mutableStateOf("") }
+    var email by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var confirmPassword by remember { mutableStateOf("") }
 
     val state by authViewModel.registerState.collectAsState()
 
@@ -69,192 +53,119 @@ fun RegisterScreen(
         }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Text("Create Account")
-                },
-                navigationIcon = {
-                    IconButton(
-                        onClick = {
-                            authViewModel.resetRegisterState()
-                            onBackClick()
-                        },
-                        enabled = state !is UiState.Loading
-                    ) {
-                        Icon(
-                            imageVector =
-                                Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back to login"
-                        )
-                    }
-                }
-            )
-        }
-    ) { innerPadding ->
-
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .padding(24.dp)
+    ) {
         Column(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .padding(24.dp),
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally
+                .weight(1f)
+                .verticalScroll(rememberScrollState()),
+            horizontalAlignment = Alignment.Start
         ) {
+            CircleBackButton(
+                onClick = {
+                    authViewModel.resetRegisterState()
+                    onBackClick()
+                }
+            )
+
+            Spacer(modifier = Modifier.height(20.dp))
+
             Text(
-                text = "Join SplitBill",
-                style = MaterialTheme.typography.headlineLarge
+                text = "Create account",
+                style = MaterialTheme.typography.headlineMedium
             )
 
             Text(
-                text = "Create an account to start splitting expenses.",
-                modifier = Modifier.padding(top = 8.dp),
+                text = "Track shared costs with your crew",
+                modifier = Modifier.padding(top = 4.dp),
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
-            Spacer(
-                modifier = Modifier.height(24.dp)
-            )
+            Spacer(modifier = Modifier.height(24.dp))
 
-            OutlinedTextField(
+            AppTextField(
                 value = displayName,
-                onValueChange = {
-                    displayName = it
-                },
-                label = {
-                    Text("Full Name")
-                },
-                placeholder = {
-                    Text("Enter your full name")
-                },
-                singleLine = true,
-                enabled = state !is UiState.Loading,
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Text,
-                    imeAction = ImeAction.Next
-                ),
-                modifier = Modifier.fillMaxWidth()
+                onValueChange = { displayName = it },
+                label = "Full name",
+                placeholder = "Jordan Lee",
+                enabled = state !is UiState.Loading
             )
 
-            Spacer(
-                modifier = Modifier.height(12.dp)
-            )
+            Spacer(modifier = Modifier.height(12.dp))
 
-            OutlinedTextField(
+            AppTextField(
                 value = email,
-                onValueChange = {
-                    email = it
-                },
-                label = {
-                    Text("Email")
-                },
-                placeholder = {
-                    Text("Enter your email")
-                },
-                singleLine = true,
+                onValueChange = { email = it },
+                label = "Email",
+                placeholder = "you@example.com",
                 enabled = state !is UiState.Loading,
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Email,
-                    imeAction = ImeAction.Next
-                ),
-                modifier = Modifier.fillMaxWidth()
+                keyboardType = KeyboardType.Email
             )
 
-            Spacer(
-                modifier = Modifier.height(12.dp)
-            )
+            Spacer(modifier = Modifier.height(12.dp))
 
-            OutlinedTextField(
+            AppPasswordField(
                 value = password,
-                onValueChange = {
-                    password = it
-                },
-                label = {
-                    Text("Password")
-                },
-                placeholder = {
-                    Text("At least 6 characters")
-                },
-                visualTransformation =
-                    PasswordVisualTransformation(),
-                singleLine = true,
+                onValueChange = { password = it },
+                label = "Password",
+                placeholder = "At least 6 characters",
                 enabled = state !is UiState.Loading,
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Password,
-                    imeAction = ImeAction.Next
-                ),
-                modifier = Modifier.fillMaxWidth()
+                imeAction = ImeAction.Next
             )
 
-            Spacer(
-                modifier = Modifier.height(12.dp)
-            )
+            Spacer(modifier = Modifier.height(12.dp))
 
-            OutlinedTextField(
+            AppPasswordField(
                 value = confirmPassword,
-                onValueChange = {
-                    confirmPassword = it
-                },
-                label = {
-                    Text("Confirm Password")
-                },
-                placeholder = {
-                    Text("Re-enter your password")
-                },
-                visualTransformation =
-                    PasswordVisualTransformation(),
-                singleLine = true,
-                enabled = state !is UiState.Loading,
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Password,
-                    imeAction = ImeAction.Done
-                ),
-                modifier = Modifier.fillMaxWidth()
+                onValueChange = { confirmPassword = it },
+                label = "Confirm password",
+                placeholder = "Re-enter password",
+                enabled = state !is UiState.Loading
             )
 
             if (state is UiState.Error) {
-                Text(
-                    text = (state as UiState.Error).message,
-                    color = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.padding(top = 12.dp)
-                )
+                ErrorText(message = (state as UiState.Error).message)
             }
+        }
 
-            Spacer(
-                modifier = Modifier.height(20.dp)
+        Spacer(modifier = Modifier.height(12.dp))
+
+        PrimaryButton(
+            text = "Create account",
+            onClick = {
+                authViewModel.register(
+                    displayName = displayName.trim(),
+                    email = email.trim(),
+                    password = password,
+                    confirmPassword = confirmPassword
+                )
+            },
+            isLoading = state is UiState.Loading
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.Center
+        ) {
+            Text(
+                text = "Already have an account? ",
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
-            Button(
-                onClick = {
-                    authViewModel.register(
-                        displayName = displayName.trim(),
-                        email = email.trim(),
-                        password = password,
-                        confirmPassword = confirmPassword
-                    )
-                },
-                enabled = state !is UiState.Loading,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                if (state is UiState.Loading) {
-                    CircularProgressIndicator(
-                        color = MaterialTheme.colorScheme.onPrimary
-                    )
-                } else {
-                    Text("Register")
-                }
-            }
-
-            TextButton(
+            InlineLink(
+                text = "Sign in",
                 onClick = {
                     authViewModel.resetRegisterState()
                     onBackClick()
                 },
                 enabled = state !is UiState.Loading
-            ) {
-                Text("Already have an account? Login")
-            }
+            )
         }
     }
 }

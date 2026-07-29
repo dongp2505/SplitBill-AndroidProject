@@ -1,280 +1,268 @@
 package week11.st560151.finalproject.ui.groups
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.google.firebase.auth.FirebaseAuth
 import week11.st560151.finalproject.data.model.Group
+import week11.st560151.finalproject.data.model.User
+import week11.st560151.finalproject.ui.components.AppBottomNav
+import week11.st560151.finalproject.ui.components.AvatarChip
+import week11.st560151.finalproject.ui.components.BottomNavTab
 import week11.st560151.finalproject.ui.state.UiState
+import week11.st560151.finalproject.ui.theme.CardBackground
+import week11.st560151.finalproject.ui.theme.CardBorder
+import week11.st560151.finalproject.ui.theme.FabGreen
+import week11.st560151.finalproject.ui.theme.TagBackground
+import week11.st560151.finalproject.ui.theme.TagText
 import week11.st560151.finalproject.viewmodel.GroupViewModel
+import java.util.Locale
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GroupsScreen(
-    onBackClick: () -> Unit,
+    onGroupClick: (String) -> Unit,
+    onAddGroupClick: () -> Unit,
+    onNotificationsClick: () -> Unit,
+    onProfileClick: () -> Unit,
     groupViewModel: GroupViewModel = viewModel()
 ) {
-    val groupsState by
-    groupViewModel.groupsState.collectAsState()
-
-    val createState by
-    groupViewModel.createState.collectAsState()
-
-    var showCreateDialog by remember {
-        mutableStateOf(false)
-    }
-
-    var groupName by remember {
-        mutableStateOf("")
-    }
+    val groupsState by groupViewModel.groupsState.collectAsState()
+    val balancesState by groupViewModel.balancesState.collectAsState()
+    val membersByGroupState by groupViewModel.membersByGroupState.collectAsState()
 
     LaunchedEffect(Unit) {
         groupViewModel.observeGroups()
     }
 
-    LaunchedEffect(createState) {
-        if (createState is UiState.Success) {
-            groupName = ""
-            showCreateDialog = false
-            groupViewModel.resetCreateState()
-        }
-    }
+    val currentUser = FirebaseAuth.getInstance().currentUser
+    val initial = (currentUser?.displayName?.firstOrNull()
+        ?: currentUser?.email?.firstOrNull()
+        ?: '?').uppercaseChar()
 
     Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Text("Groups")
-                },
-                navigationIcon = {
-                    IconButton(
-                        onClick = onBackClick
-                    ) {
-                        Icon(
-                            imageVector =
-                                Icons.AutoMirrored
-                                    .Filled.ArrowBack,
-                            contentDescription = "Back"
-                        )
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = onAddGroupClick,
+                shape = CircleShape,
+                containerColor = FabGreen,
+                contentColor = MaterialTheme.colorScheme.onTertiary
+            ) {
+                Icon(Icons.Default.Add, contentDescription = "Add group")
+            }
+        },
+        bottomBar = {
+            AppBottomNav(
+                selected = BottomNavTab.Groups,
+                onSelect = { tab ->
+                    when (tab) {
+                        BottomNavTab.Groups -> Unit
+                        BottomNavTab.Notifications -> onNotificationsClick()
+                        BottomNavTab.Profile -> onProfileClick()
                     }
                 }
             )
-        },
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = {
-                    showCreateDialog = true
-                }
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Add,
-                    contentDescription =
-                        "Create group"
-                )
-            }
         }
     ) { paddingValues ->
 
-        when (val state = groupsState) {
-            UiState.Idle,
-            UiState.Loading -> {
-                Column(
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background)
+                .padding(paddingValues)
+                .padding(24.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Your groups",
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold
+                )
+
+                Box(
                     modifier = Modifier
-                        .fillMaxSize()
-                        .padding(paddingValues),
-                    verticalArrangement =
-                        Arrangement.Center
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.tertiary),
+                    contentAlignment = Alignment.Center
                 ) {
-                    CircularProgressIndicator()
+                    Text(text = initial.toString(), fontWeight = FontWeight.Bold)
                 }
             }
 
-            is UiState.Error -> {
-                Text(
-                    text = state.message,
-                    color =
-                        MaterialTheme.colorScheme.error,
-                    modifier = Modifier
-                        .padding(paddingValues)
-                        .padding(24.dp)
-                )
-            }
+            Spacer(modifier = Modifier.height(20.dp))
 
-            is UiState.Success -> {
-                if (state.data.isEmpty()) {
-                    Text(
-                        text =
-                            "No groups yet. Press + to create one.",
-                        modifier = Modifier
-                            .padding(paddingValues)
-                            .padding(24.dp)
-                    )
-                } else {
-                    LazyColumn(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(paddingValues)
-                            .padding(24.dp),
-                        verticalArrangement =
-                            Arrangement.spacedBy(12.dp)
+            when (val state = groupsState) {
+                UiState.Idle,
+                UiState.Loading -> {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
                     ) {
-                        items(
-                            items = state.data,
-                            key = {
-                                it.id
+                        CircularProgressIndicator()
+                    }
+                }
+
+                is UiState.Error -> {
+                    Text(
+                        text = state.message,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+
+                is UiState.Success -> {
+                    if (state.data.isEmpty()) {
+                        Text(
+                            text = "No groups yet. Tap + to create or join one.",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        LazyColumn(
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            items(items = state.data, key = { it.id }) { group ->
+                                GroupCard(
+                                    group = group,
+                                    members = membersByGroupState[group.id].orEmpty(),
+                                    currentUserId = currentUser?.uid.orEmpty(),
+                                    balance = balancesState[group.id],
+                                    onClick = { onGroupClick(group.id) }
+                                )
                             }
-                        ) { group ->
-                            GroupCard(group)
                         }
                     }
                 }
             }
         }
     }
-
-    if (showCreateDialog) {
-        AlertDialog(
-            onDismissRequest = {
-                if (
-                    createState !is UiState.Loading
-                ) {
-                    showCreateDialog = false
-                }
-            },
-            title = {
-                Text("Create Group")
-            },
-            text = {
-                Column {
-                    OutlinedTextField(
-                        value = groupName,
-                        onValueChange = {
-                            groupName = it
-                        },
-                        label = {
-                            Text("Group Name")
-                        },
-                        singleLine = true,
-                        modifier =
-                            Modifier.fillMaxWidth()
-                    )
-
-                    if (
-                        createState is UiState.Error
-                    ) {
-                        Text(
-                            text =
-                                (createState
-                                        as UiState.Error)
-                                    .message,
-                            color =
-                                MaterialTheme
-                                    .colorScheme.error,
-                            modifier =
-                                Modifier.padding(
-                                    top = 8.dp
-                                )
-                        )
-                    }
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        groupViewModel.createGroup(
-                            groupName
-                        )
-                    },
-                    enabled =
-                        createState !is UiState.Loading
-                ) {
-                    Text("Create")
-                }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = {
-                        showCreateDialog = false
-                        groupViewModel
-                            .resetCreateState()
-                    }
-                ) {
-                    Text("Cancel")
-                }
-            }
-        )
-    }
 }
 
 @Composable
 private fun GroupCard(
-    group: Group
+    group: Group,
+    members: List<User>,
+    currentUserId: String,
+    balance: Double?,
+    onClick: () -> Unit
 ) {
     Card(
+        onClick = onClick,
+        colors = CardDefaults.cardColors(containerColor = CardBackground),
+        border = BorderStroke(1.dp, CardBorder),
         modifier = Modifier.fillMaxWidth()
     ) {
-        Column(
-            modifier = Modifier.padding(18.dp)
-        ) {
-            Text(
-                text = group.name,
-                style =
-                    MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
-            )
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(text = group.name, fontWeight = FontWeight.Bold)
 
-            Spacer(
-                modifier = Modifier.padding(3.dp)
-            )
+                if (group.type.isNotBlank()) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(50))
+                            .background(TagBackground)
+                            .padding(horizontal = 10.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = group.type,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = TagText
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement =
-                    Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text =
-                        "${group.memberIds.size} member(s)"
-                )
+                Row(horizontalArrangement = Arrangement.spacedBy((-8).dp)) {
+                    members.forEach { user ->
+                        AvatarChip(user = user, borderColor = CardBackground)
+                    }
+                }
 
-                Text(
-                    text =
-                        "Code: ${group.inviteCode}"
-                )
+                BalanceLabel(currentUserId = currentUserId, balance = balance)
             }
         }
     }
+}
+
+@Composable
+private fun BalanceLabel(currentUserId: String, balance: Double?) {
+    when {
+        balance == null -> Unit
+
+        balance > 0.01 -> {
+            Text(
+                text = "You are owed ${formatMoney(balance)}",
+                color = MaterialTheme.colorScheme.tertiary,
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.Bold
+            )
+        }
+
+        balance < -0.01 -> {
+            Text(
+                text = "You owe ${formatMoney(-balance)}",
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.Bold
+            )
+        }
+
+        else -> {
+            Text(
+                text = "Settled up",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodySmall
+            )
+        }
+    }
+}
+
+private fun formatMoney(amount: Double): String {
+    return String.format(Locale.US, "$%.2f", amount)
 }

@@ -1,4 +1,4 @@
-package week11.st560151.finalproject.ui.auth
+package week11.st560151.finalproject.ui.groups
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -16,23 +17,31 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import week11.st560151.finalproject.ui.components.AppTextField
 import week11.st560151.finalproject.ui.components.CircleBackButton
 import week11.st560151.finalproject.ui.components.ErrorText
 import week11.st560151.finalproject.ui.components.PrimaryButton
 import week11.st560151.finalproject.ui.state.UiState
-import week11.st560151.finalproject.viewmodel.AuthViewModel
+import week11.st560151.finalproject.viewmodel.GroupViewModel
 
 @Composable
-fun ForgotPasswordScreen(
-    authViewModel: AuthViewModel,
-    onBackClick: () -> Unit
+fun JoinGroupScreen(
+    onBackClick: () -> Unit,
+    onGroupJoined: () -> Unit,
+    groupViewModel: GroupViewModel = viewModel()
 ) {
-    var email by remember { mutableStateOf("") }
+    var inviteCode by remember { mutableStateOf("") }
 
-    val state by authViewModel.resetState.collectAsState()
+    val joinState by groupViewModel.joinState.collectAsState()
+
+    LaunchedEffect(joinState) {
+        if (joinState is UiState.Success) {
+            groupViewModel.resetJoinState()
+            onGroupJoined()
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -44,22 +53,17 @@ fun ForgotPasswordScreen(
             modifier = Modifier.weight(1f),
             horizontalAlignment = Alignment.Start
         ) {
-            CircleBackButton(
-                onClick = {
-                    authViewModel.resetPasswordState()
-                    onBackClick()
-                }
-            )
+            CircleBackButton(onClick = onBackClick)
 
             Spacer(modifier = Modifier.height(20.dp))
 
             Text(
-                text = "Reset Password",
+                text = "Join group",
                 style = MaterialTheme.typography.headlineMedium
             )
 
             Text(
-                text = "Enter your email and we'll send you a reset link",
+                text = "Enter the invite code someone sent you",
                 modifier = Modifier.padding(top = 4.dp),
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -67,37 +71,24 @@ fun ForgotPasswordScreen(
             Spacer(modifier = Modifier.height(24.dp))
 
             AppTextField(
-                value = email,
-                onValueChange = { email = it },
-                label = "Email",
-                placeholder = "you@example.com",
-                enabled = state !is UiState.Loading,
-                keyboardType = KeyboardType.Email
+                value = inviteCode,
+                onValueChange = { inviteCode = it.uppercase() },
+                label = "Invite code",
+                placeholder = "e.g. 7XGM-KDHK",
+                enabled = joinState !is UiState.Loading
             )
 
-            when (val currentState = state) {
-                is UiState.Error -> {
-                    ErrorText(message = currentState.message)
-                }
-
-                is UiState.Success -> {
-                    Text(
-                        text = "Password reset email sent.",
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(top = 12.dp)
-                    )
-                }
-
-                else -> Unit
+            if (joinState is UiState.Error) {
+                ErrorText(message = (joinState as UiState.Error).message)
             }
         }
 
         PrimaryButton(
-            text = "Send reset email",
+            text = "Join Group",
+            isLoading = joinState is UiState.Loading,
             onClick = {
-                authViewModel.sendPasswordReset(email)
-            },
-            isLoading = state is UiState.Loading
+                groupViewModel.joinGroup(inviteCode)
+            }
         )
     }
 }

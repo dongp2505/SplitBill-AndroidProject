@@ -1,0 +1,134 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isGroupMember(groupId) {
+      return signedIn()
+        && request.auth.uid
+          in get(/databases/$(database)/documents/groups/$(groupId)).data.memberIds;
+    }
+
+    match /users/{userId} {
+      allow create: if signedIn()
+        && request.auth.uid == userId;
+
+      allow read: if signedIn();
+
+      allow update: if signedIn()
+        && request.auth.uid == userId;
+
+      allow delete: if false;
+    }
+
+    match /groups/{groupId} {
+      allow create: if signedIn()
+        && request.resource.data.ownerId
+          == request.auth.uid
+        && request.auth.uid
+          in request.resource.data.memberIds;
+
+      // Read is open to any signed-in user, not just members. Joining by
+      // invite code (GroupRepository.joinGroupByInviteCode) looks a group up
+      // by its inviteCode before the requester is a member, and Firestore
+      // rejects the entire query if any potential match isn't individually
+      // readable — so this can't be scoped to "members only" the way
+      // expenses/settlements are. Nothing more sensitive than a group's
+      // name/type/member list lives on this document.
+      allow read: if signedIn();
+
+      // Two ways to update: (1) an existing member editing the group, or
+      // (2) someone who isn't a member yet adding only their own uid to
+      // memberIds — the invite-code join path (GroupRepository.joinGroup
+      // ByInviteCode uses arrayUnion, which only ever appends one uid).
+      allow update: if signedIn()
+        && (
+          request.auth.uid in resource.data.memberIds
+          ||
+          request.resource.data.memberIds
+            == resource.data.memberIds.concat([request.auth.uid])
+        );
+
+      allow delete: if signedIn()
+        && resource.data.ownerId
+          == request.auth.uid;
+    }
+
+    match /expenses/{expenseId} {
+      allow create: if isGroupMember(request.resource.data.groupId)
+        && request.resource.data.createdBy == request.auth.uid;
+
+      allow read, update, delete: if isGroupMember(resource.data.groupId);
+    }
+
+    match /settlements/{settlementId} {
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly([
+          "id",
+          "groupId",
+          "payerId",
+          "payerName",
+          "payerEmail",
+          "receiverId",
+          "receiverName",
+          "receiverEmail",
+          "amount",
+          "status",
+          "createdById",
+          "createdByName",
+          "confirmedWithBiometric",
+          "createdAt"
+        ])
+        && request.resource.data.createdById
+          == request.auth.uid
+        && request.resource.data.payerId
+          is string
+        && request.resource.data.receiverId
+          is string
+        && request.resource.data.payerId
+          != request.resource.data.receiverId
+        && request.resource.data.amount
+          is number
+        && request.resource.data.amount > 0
+        && request.resource.data.status
+          == "COMPLETED"
+        && request.resource.data
+          .confirmedWithBiometric == true;
+
+      // Group members can read the whole group's settlement history (needed
+      // for balance calculations, which query "all settlements for groupId
+      // X"), or you can always read one you were a direct party to. The
+      // groupId branch matters for a second reason too: Firestore rejects a
+      // query outright if it can't prove every potential match satisfies the
+      // rule using the query's own filter alone — a rule keyed only on
+      // payerId/receiverId/createdById can never be proven from a
+      // whereEqualTo("groupId", ...) query, so without this branch every
+      // groupId-scoped settlements query fails closed with PERMISSION_DENIED,
+      // even when the caller would've been allowed to see every result.
+      allow read: if isGroupMember(resource.data.groupId)
+        || (
+          signedIn()
+          && (
+            resource.data.createdById
+              == request.auth.uid
+            ||
+            resource.data.payerId
+              == request.auth.uid
+            ||
+            resource.data.receiverId
+              == request.auth.uid
+          )
+        );
+
+      allow update, delete: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

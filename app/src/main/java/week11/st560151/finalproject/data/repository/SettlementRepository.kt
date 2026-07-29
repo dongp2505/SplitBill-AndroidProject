@@ -127,4 +127,23 @@ class SettlementRepository(
             Result.failure(exception)
         }
     }
+
+    /** One-shot fetch used for balance calculations. */
+    suspend fun getSettlementsOnce(
+        groupId: String
+    ): Result<List<Settlement>> {
+        return try {
+            val snapshot = firestore
+                .collection("settlements")
+                .whereEqualTo("groupId", groupId)
+                .get()
+                .await()
+
+            Result.success(
+                snapshot.documents.mapNotNull { it.toObject(Settlement::class.java) }
+            )
+        } catch (exception: Exception) {
+            Result.failure(exception)
+        }
+    }
 }

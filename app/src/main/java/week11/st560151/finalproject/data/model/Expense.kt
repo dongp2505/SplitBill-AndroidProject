@@ -2,6 +2,7 @@ package week11.st560151.finalproject.data.model
 
 data class Expense(
     val id: String = "",
+    val groupId: String = "",
     val description: String = "",
     val amount: Double = 0.0,
     val category: String = "",

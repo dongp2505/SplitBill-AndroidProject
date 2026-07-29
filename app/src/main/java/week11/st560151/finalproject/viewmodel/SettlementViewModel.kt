@@ -10,15 +10,20 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
+import week11.st560151.finalproject.data.model.User
 import week11.st560151.finalproject.data.repository.SettlementRepository
 
 data class SettlementUiState(
+    val groupId: String = "",
     val payerEmail: String = "",
     val receiverEmail: String = "",
     val amount: String = "",
 
-    val payerName: String = "",
-    val receiverName: String = "",
+    // Resolved once we know the two emails, so the Info/Biometric steps can
+    // show a real name/avatar before the settlement is actually written.
+    val payerUser: User? = null,
+    val receiverUser: User? = null,
+    val isLoadingParticipants: Boolean = false,
 
     val createdByName: String = "",
 
@@ -100,6 +105,44 @@ class SettlementViewModel(
                             ?: "User"
                 )
             }
+        }
+    }
+
+    /** Pre-fills the form when arriving from a group's "Settle up" suggestion. */
+    fun prefill(
+        groupId: String,
+        payerEmail: String,
+        receiverEmail: String,
+        amount: Double
+    ) {
+        _uiState.value = _uiState.value.copy(
+            groupId = groupId,
+            payerEmail = payerEmail,
+            receiverEmail = receiverEmail,
+            amount = if (amount > 0.0) "%.2f".format(amount) else ""
+        )
+
+        loadParticipants()
+    }
+
+    private fun loadParticipants() {
+        val state = _uiState.value
+
+        if (state.payerEmail.isBlank() || state.receiverEmail.isBlank()) {
+            return
+        }
+
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoadingParticipants = true)
+
+            val payer = repository.findUserByEmail(state.payerEmail).getOrNull()
+            val receiver = repository.findUserByEmail(state.receiverEmail).getOrNull()
+
+            _uiState.value = _uiState.value.copy(
+                payerUser = payer,
+                receiverUser = receiver,
+                isLoadingParticipants = false
+            )
         }
     }
 
@@ -233,33 +276,21 @@ class SettlementViewModel(
                 errorMessage = null
             )
 
-            val payerResult =
-                repository.findUserByEmail(
-                    currentState.payerEmail
-                )
+            // Reuse whatever loadParticipants() already resolved, only
+            // re-fetching if that hasn't completed yet.
+            val payer = currentState.payerUser
+                ?: repository.findUserByEmail(currentState.payerEmail)
+                    .getOrElse { exception ->
+                        showError(exception.message ?: "Payer was not found.")
+                        return@launch
+                    }
 
-            val payer =
-                payerResult.getOrElse { exception ->
-                    showError(
-                        exception.message
-                            ?: "Payer was not found."
-                    )
-                    return@launch
-                }
-
-            val receiverResult =
-                repository.findUserByEmail(
-                    currentState.receiverEmail
-                )
-
-            val receiver =
-                receiverResult.getOrElse { exception ->
-                    showError(
-                        exception.message
-                            ?: "Receiver was not found."
-                    )
-                    return@launch
-                }
+            val receiver = currentState.receiverUser
+                ?: repository.findUserByEmail(currentState.receiverEmail)
+                    .getOrElse { exception ->
+                        showError(exception.message ?: "Receiver was not found.")
+                        return@launch
+                    }
 
             if (payer.uid == receiver.uid) {
                 showError(
@@ -269,7 +300,7 @@ class SettlementViewModel(
             }
 
             repository.saveSettlement(
-                groupId = "",
+                groupId = currentState.groupId,
                 payer = payer,
                 receiver = receiver,
                 amount = amountNumber,
@@ -279,18 +310,8 @@ class SettlementViewModel(
             ).onSuccess {
                 _uiState.value =
                     _uiState.value.copy(
-                        payerName =
-                            payer.displayName.ifBlank {
-                                payer.email
-                                    .substringBefore("@")
-                            },
-
-                        receiverName =
-                            receiver.displayName.ifBlank {
-                                receiver.email
-                                    .substringBefore("@")
-                            },
-
+                        payerUser = payer,
+                        receiverUser = receiver,
                         isSaving = false,
                         isCompleted = true,
                         errorMessage = null
@@ -321,15 +342,8 @@ class SettlementViewModel(
     }
 
     fun clearForm() {
-        _uiState.value = _uiState.value.copy(
-            payerEmail = "",
-            receiverEmail = "",
-            amount = "",
-            payerName = "",
-            receiverName = "",
-            isSaving = false,
-            isCompleted = false,
-            errorMessage = null
+        _uiState.value = SettlementUiState(
+            createdByName = _uiState.value.createdByName
         )
     }
 }
