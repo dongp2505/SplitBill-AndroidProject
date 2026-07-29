@@ -13,4 +13,7 @@ sealed class Screen(
     data object Home : Screen("home")
 
     data object Groups : Screen("groups")
+
+    data object Settlement :
+        Screen("settlement")
 }
