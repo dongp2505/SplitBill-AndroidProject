@@ -42,6 +42,7 @@ import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.viewmodel.compose.viewModel
 import week11.st560151.finalproject.util.BiometricAuthenticator
 import week11.st560151.finalproject.viewmodel.SettlementViewModel
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -337,7 +338,9 @@ fun SettlementScreen(
             text = {
                 Text(
                     text =
-                        "The selected payer and receiver were saved to Firebase."
+                        "${state.payerName} paid " +
+                                "${state.receiverName} " +
+                                formatMoney(state.amount)
                 )
             },
             confirmButton = {
@@ -352,4 +355,17 @@ fun SettlementScreen(
             }
         )
     }
+}
+
+private fun formatMoney(
+    amount: String
+): String {
+    val amountNumber =
+        amount.toDoubleOrNull() ?: 0.0
+
+    return String.format(
+        Locale.US,
+        "$%.2f",
+        amountNumber
+    )
 }

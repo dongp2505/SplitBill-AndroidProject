@@ -16,7 +16,12 @@ data class SettlementUiState(
     val payerEmail: String = "",
     val receiverEmail: String = "",
     val amount: String = "",
+
+    val payerName: String = "",
+    val receiverName: String = "",
+
     val createdByName: String = "",
+
     val isSaving: Boolean = false,
     val isCompleted: Boolean = false,
     val errorMessage: String? = null
@@ -87,14 +92,12 @@ class SettlementViewModel(
                     errorMessage = null
                 )
             } catch (_: Exception) {
-                val fallbackName =
-                    currentUser.displayName
-                        ?: currentUser.email
-                            ?.substringBefore("@")
-                        ?: "User"
-
                 _uiState.value = _uiState.value.copy(
-                    createdByName = fallbackName
+                    createdByName =
+                        currentUser.displayName
+                            ?: currentUser.email
+                                ?.substringBefore("@")
+                            ?: "User"
                 )
             }
         }
@@ -129,11 +132,10 @@ class SettlementViewModel(
             return
         }
 
-        val decimalPart =
-            filteredValue.substringAfter(
-                delimiter = ".",
-                missingDelimiterValue = ""
-            )
+        val decimalPart = filteredValue.substringAfter(
+            delimiter = ".",
+            missingDelimiterValue = ""
+        )
 
         if (
             filteredValue.contains(".") &&
@@ -199,9 +201,7 @@ class SettlementViewModel(
                 false
             }
 
-            else -> {
-                true
-            }
+            else -> true
         }
     }
 
@@ -238,13 +238,14 @@ class SettlementViewModel(
                     currentState.payerEmail
                 )
 
-            val payer = payerResult.getOrElse { exception ->
-                showError(
-                    exception.message
-                        ?: "Payer was not found."
-                )
-                return@launch
-            }
+            val payer =
+                payerResult.getOrElse { exception ->
+                    showError(
+                        exception.message
+                            ?: "Payer was not found."
+                    )
+                    return@launch
+                }
 
             val receiverResult =
                 repository.findUserByEmail(
@@ -278,6 +279,18 @@ class SettlementViewModel(
             ).onSuccess {
                 _uiState.value =
                     _uiState.value.copy(
+                        payerName =
+                            payer.displayName.ifBlank {
+                                payer.email
+                                    .substringBefore("@")
+                            },
+
+                        receiverName =
+                            receiver.displayName.ifBlank {
+                                receiver.email
+                                    .substringBefore("@")
+                            },
+
                         isSaving = false,
                         isCompleted = true,
                         errorMessage = null
@@ -312,6 +325,8 @@ class SettlementViewModel(
             payerEmail = "",
             receiverEmail = "",
             amount = "",
+            payerName = "",
+            receiverName = "",
             isSaving = false,
             isCompleted = false,
             errorMessage = null
