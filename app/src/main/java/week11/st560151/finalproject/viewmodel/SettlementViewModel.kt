@@ -249,7 +249,9 @@ class SettlementViewModel(
     }
 
     fun completeSettlement() {
-        if (!validate()) {
+        val currentState = _uiState.value
+
+        if (currentState.isSaving) {
             return
         }
 
@@ -260,68 +262,62 @@ class SettlementViewModel(
             return
         }
 
-        val currentState = _uiState.value
-        val amountNumber =
-            currentState.amount.toDoubleOrNull()
+        val payer = currentState.payerUser
 
-        if (amountNumber == null) {
-            showError("Enter a valid amount.")
+        if (payer == null) {
+            showError("Payer information is missing.")
+            return
+        }
+
+        val receiver = currentState.receiverUser
+
+        if (receiver == null) {
+            showError("Receiver information is missing.")
+            return
+        }
+
+        val amountValue = currentState.amount.toDoubleOrNull()
+
+        if (amountValue == null || amountValue <= 0.0) {
+            showError("Enter a valid settlement amount.")
+            return
+        }
+
+        if (currentState.groupId.isBlank()) {
+            showError("Group ID is missing.")
             return
         }
 
         viewModelScope.launch {
             _uiState.value = currentState.copy(
                 isSaving = true,
-                isCompleted = false,
                 errorMessage = null
             )
 
-            // Reuse whatever loadParticipants() already resolved, only
-            // re-fetching if that hasn't completed yet.
-            val payer = currentState.payerUser
-                ?: repository.findUserByEmail(currentState.payerEmail)
-                    .getOrElse { exception ->
-                        showError(exception.message ?: "Payer was not found.")
-                        return@launch
-                    }
-
-            val receiver = currentState.receiverUser
-                ?: repository.findUserByEmail(currentState.receiverEmail)
-                    .getOrElse { exception ->
-                        showError(exception.message ?: "Receiver was not found.")
-                        return@launch
-                    }
-
-            if (payer.uid == receiver.uid) {
-                showError(
-                    "Payer and receiver cannot be the same user."
+            repository
+                .saveSettlement(
+                    groupId = currentState.groupId,
+                    payer = payer,
+                    receiver = receiver,
+                    amount = amountValue,
+                    createdById = currentUser.uid,
+                    createdByName = currentState.createdByName
                 )
-                return@launch
-            }
-
-            repository.saveSettlement(
-                groupId = currentState.groupId,
-                payer = payer,
-                receiver = receiver,
-                amount = amountNumber,
-                createdById = currentUser.uid,
-                createdByName =
-                    currentState.createdByName
-            ).onSuccess {
-                _uiState.value =
-                    _uiState.value.copy(
-                        payerUser = payer,
-                        receiverUser = receiver,
+                .onSuccess {
+                    _uiState.value = _uiState.value.copy(
                         isSaving = false,
                         isCompleted = true,
                         errorMessage = null
                     )
-            }.onFailure { exception ->
-                showError(
-                    exception.message
-                        ?: "Unable to save settlement."
-                )
-            }
+                }
+                .onFailure { exception ->
+                    _uiState.value = _uiState.value.copy(
+                        isSaving = false,
+                        isCompleted = false,
+                        errorMessage = exception.message
+                            ?: "Unable to complete settlement."
+                    )
+                }
         }
     }
 

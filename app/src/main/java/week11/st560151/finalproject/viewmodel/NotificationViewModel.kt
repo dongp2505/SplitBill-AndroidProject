@@ -13,12 +13,17 @@ import week11.st560151.finalproject.data.model.AppNotification
 import week11.st560151.finalproject.data.repository.NotificationRepository
 
 class NotificationViewModel(
-    private val repository: NotificationRepository = NotificationRepository(),
-    private val auth: FirebaseAuth = FirebaseAuth.getInstance()
+    private val repository: NotificationRepository =
+        NotificationRepository(),
+
+    private val auth: FirebaseAuth =
+        FirebaseAuth.getInstance()
 ) : ViewModel() {
 
     private val _notifications =
-        MutableStateFlow<List<AppNotification>>(emptyList())
+        MutableStateFlow<List<AppNotification>>(
+            emptyList()
+        )
 
     val notifications: StateFlow<List<AppNotification>> =
         _notifications.asStateFlow()
@@ -28,6 +33,12 @@ class NotificationViewModel(
 
     val errorMessage: StateFlow<String?> =
         _errorMessage.asStateFlow()
+
+    private val _isLoading =
+        MutableStateFlow(true)
+
+    val isLoading: StateFlow<Boolean> =
+        _isLoading.asStateFlow()
 
     private var notificationJob: Job? = null
 
@@ -39,8 +50,11 @@ class NotificationViewModel(
 
         val userId = auth.currentUser?.uid
 
-        if (userId == null) {
-            _errorMessage.value = "User not logged in."
+        if (userId.isNullOrBlank()) {
+            _notifications.value = emptyList()
+            _isLoading.value = false
+            _errorMessage.value =
+                "You must sign in to view notifications."
             return
         }
 
@@ -48,18 +62,25 @@ class NotificationViewModel(
 
         notificationJob = viewModelScope.launch {
 
+            _isLoading.value = true
             _errorMessage.value = null
 
             repository
                 .observeNotifications(userId)
                 .catch { exception ->
+
+                    _isLoading.value = false
+                    _notifications.value = emptyList()
+
                     _errorMessage.value =
-                        exception.message ?: "Failed to load notifications."
+                        exception.message
+                            ?: "Unable to load notifications."
                 }
                 .collect { notificationList ->
 
-                    _errorMessage.value = null
                     _notifications.value = notificationList
+                    _isLoading.value = false
+                    _errorMessage.value = null
                 }
         }
     }
@@ -68,18 +89,40 @@ class NotificationViewModel(
         startObserving()
     }
 
-    fun markAsRead(notificationId: String) {
-
+    fun markAsRead(
+        notificationId: String
+    ) {
         viewModelScope.launch {
 
             repository
                 .markAsRead(notificationId)
-                .onFailure {
+                .onFailure { exception ->
 
                     _errorMessage.value =
-                        it.message ?: "Failed to update notification."
+                        exception.message
+                            ?: "Unable to update notification."
                 }
         }
+    }
+
+    fun deleteNotification(
+        notificationId: String
+    ) {
+        viewModelScope.launch {
+
+            repository
+                .deleteNotification(notificationId)
+                .onFailure { exception ->
+
+                    _errorMessage.value =
+                        exception.message
+                            ?: "Unable to delete notification."
+                }
+        }
+    }
+
+    fun clearError() {
+        _errorMessage.value = null
     }
 
     override fun onCleared() {

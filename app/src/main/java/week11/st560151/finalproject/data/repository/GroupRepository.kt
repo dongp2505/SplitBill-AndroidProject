@@ -1,5 +1,6 @@
 package week11.st560151.finalproject.data.repository
 
+import android.util.Log
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.channels.awaitClose
@@ -20,14 +21,18 @@ class GroupRepository(
         NotificationRepository()
 ) {
 
+    companion object {
+        private const val TAG = "GroupRepository"
+    }
+
     /*
      * Creates a new group.
      *
-     * Registered users whose emails are entered on the create-group
-     * screen are immediately added to memberIds.
+     * Registered users whose emails are entered are immediately
+     * added to the group's memberIds.
      *
-     * After the group is created, every invited member receives
-     * a notification, except the group owner.
+     * If notification creation fails, the group still remains
+     * successfully created.
      */
     suspend fun createGroup(
         name: String,
@@ -36,6 +41,7 @@ class GroupRepository(
         inviteEmails: List<String> = emptyList()
     ): Result<String> {
         return try {
+
             if (name.isBlank()) {
                 throw IllegalArgumentException(
                     "Group name cannot be empty."
@@ -49,9 +55,10 @@ class GroupRepository(
             }
 
             /*
-             * Find the UID belonging to each invited email.
+             * Convert invited emails into Firebase user UIDs.
              *
-             * Emails without an existing registered account are skipped.
+             * Only users who already have a SplitBill account
+             * will be immediately added.
              */
             val invitedUids = inviteEmails
                 .map { email ->
@@ -62,27 +69,56 @@ class GroupRepository(
                 }
                 .distinct()
                 .mapNotNull { email ->
-                    userRepository
-                        .findUserByEmail(email)
-                        .getOrNull()
-                        ?.uid
+
+                    val userResult =
+                        userRepository.findUserByEmail(email)
+
+                    val user = userResult.getOrNull()
+
+                    if (user == null) {
+                        Log.w(
+                            TAG,
+                            "No registered user found for email: $email"
+                        )
+                    }
+
+                    user?.uid
                 }
                 .filter { uid ->
                     uid.isNotBlank()
                 }
+                .filter { uid ->
+                    uid != ownerId
+                }
                 .distinct()
 
+            Log.d(
+                TAG,
+                "Owner UID: $ownerId"
+            )
+
+            Log.d(
+                TAG,
+                "Invited UIDs: $invitedUids"
+            )
+
             /*
-             * The owner must always be a member.
+             * The group owner must always be included.
              */
             val memberIds = (
                     listOf(ownerId) + invitedUids
                     ).distinct()
 
+            /*
+             * Create a new group document.
+             */
             val groupDocument = firestore
                 .collection("groups")
                 .document()
 
+            /*
+             * Build the group object.
+             */
             val group = Group(
                 id = groupDocument.id,
                 name = name.trim(),
@@ -94,20 +130,27 @@ class GroupRepository(
             )
 
             /*
-             * Save the group to Firestore.
+             * Save the group first.
              */
             groupDocument
                 .set(group)
                 .await()
 
+            Log.d(
+                TAG,
+                "Group created successfully: ${groupDocument.id}"
+            )
+
             /*
-             * STEP 4:
-             * Notify all invited registered users.
+             * Send notifications to invited users.
              *
-             * The owner does not receive this notification.
+             * Do not use getOrThrow() here.
+             *
+             * If notification creation fails, the group should
+             * still be reported as successfully created.
              */
-            notificationRepository
-                .createNotifications(
+            val notificationResult =
+                notificationRepository.createNotifications(
                     recipientIds = invitedUids,
                     groupId = groupDocument.id,
                     type = "GROUP_CREATED",
@@ -115,21 +158,48 @@ class GroupRepository(
                     message = "You were added to ${group.name}",
                     excludeUserId = ownerId
                 )
-                .getOrThrow()
 
+            notificationResult
+                .onSuccess {
+                    Log.d(
+                        TAG,
+                        "Group invitation notifications created."
+                    )
+                }
+                .onFailure { exception ->
+                    Log.e(
+                        TAG,
+                        "Group was created, but notifications failed.",
+                        exception
+                    )
+                }
+
+            /*
+             * The group was successfully created even if
+             * notification creation failed.
+             */
             Result.success(groupDocument.id)
+
         } catch (exception: Exception) {
+
+            Log.e(
+                TAG,
+                "Unable to create group.",
+                exception
+            )
+
             Result.failure(exception)
         }
     }
 
     /*
-     * Loads one group by its document ID.
+     * Loads one group by its Firestore document ID.
      */
     suspend fun getGroup(
         groupId: String
     ): Result<Group> {
         return try {
+
             if (groupId.isBlank()) {
                 throw IllegalArgumentException(
                     "Group ID cannot be empty."
@@ -142,30 +212,51 @@ class GroupRepository(
                 .get()
                 .await()
 
+            if (!document.exists()) {
+                throw IllegalStateException(
+                    "Group not found."
+                )
+            }
+
             val group = document
                 .toObject(Group::class.java)
                 ?: throw IllegalStateException(
-                    "Group not found."
+                    "Unable to read the group."
                 )
 
-            Result.success(group)
+            val resolvedGroup = group.copy(
+                id = group.id.ifBlank {
+                    document.id
+                }
+            )
+
+            Result.success(resolvedGroup)
+
         } catch (exception: Exception) {
+
+            Log.e(
+                TAG,
+                "Unable to load group.",
+                exception
+            )
+
             Result.failure(exception)
         }
     }
 
     /*
-     * Adds the current user to a group using its invite code.
+     * Adds a user to a group using the invite code.
      *
-     * STEP 5:
-     * After the user joins, every existing group member receives
-     * a notification, except the user who just joined.
+     * Existing group members receive a notification.
+     *
+     * Notification failure will not undo the successful join.
      */
     suspend fun joinGroupByInviteCode(
         inviteCode: String,
         userId: String
     ): Result<Group> {
         return try {
+
             val normalizedCode = inviteCode
                 .trim()
                 .uppercase()
@@ -182,6 +273,9 @@ class GroupRepository(
                 )
             }
 
+            /*
+             * Find the group using its invite code.
+             */
             val snapshot = firestore
                 .collection("groups")
                 .whereEqualTo(
@@ -205,16 +299,22 @@ class GroupRepository(
                     "Unable to read the group."
                 )
 
+            val resolvedGroup = group.copy(
+                id = group.id.ifBlank {
+                    document.id
+                }
+            )
+
             /*
-             * If the user is already a member, do not add them again
-             * and do not create another notification.
+             * If already a member, return without duplicating
+             * the user or creating another notification.
              */
-            if (userId in group.memberIds) {
-                return Result.success(group)
+            if (userId in resolvedGroup.memberIds) {
+                return Result.success(resolvedGroup)
             }
 
             /*
-             * Add the new member to the group's memberIds array.
+             * Add the current user UID to memberIds.
              */
             document.reference
                 .update(
@@ -223,28 +323,60 @@ class GroupRepository(
                 )
                 .await()
 
+            Log.d(
+                TAG,
+                "User $userId joined group ${resolvedGroup.id}"
+            )
+
             /*
              * Notify the members who were already in the group.
+             *
+             * The joining user does not receive this notification.
              */
-            notificationRepository
-                .createNotifications(
-                    recipientIds = group.memberIds,
-                    groupId = group.id,
+            val notificationResult =
+                notificationRepository.createNotifications(
+                    recipientIds = resolvedGroup.memberIds,
+                    groupId = resolvedGroup.id,
                     type = "MEMBER_JOINED",
                     title = "New group member",
-                    message = "A new member joined ${group.name}",
+                    message = "A new member joined ${resolvedGroup.name}",
                     excludeUserId = userId
                 )
-                .getOrThrow()
 
-            val updatedGroup = group.copy(
+            notificationResult
+                .onSuccess {
+                    Log.d(
+                        TAG,
+                        "Member-joined notifications created."
+                    )
+                }
+                .onFailure { exception ->
+                    Log.e(
+                        TAG,
+                        "User joined, but notifications failed.",
+                        exception
+                    )
+                }
+
+            /*
+             * Return the updated group locally.
+             */
+            val updatedGroup = resolvedGroup.copy(
                 memberIds = (
-                        group.memberIds + userId
+                        resolvedGroup.memberIds + userId
                         ).distinct()
             )
 
             Result.success(updatedGroup)
+
         } catch (exception: Exception) {
+
+            Log.e(
+                TAG,
+                "Unable to join group.",
+                exception
+            )
+
             Result.failure(exception)
         }
     }
@@ -271,6 +403,13 @@ class GroupRepository(
             .addSnapshotListener { snapshot, error ->
 
                 if (error != null) {
+
+                    Log.e(
+                        TAG,
+                        "Group listener failed.",
+                        error
+                    )
+
                     close(error)
                     return@addSnapshotListener
                 }
@@ -278,9 +417,12 @@ class GroupRepository(
                 val groups = snapshot
                     ?.documents
                     ?.mapNotNull { document ->
-                        document.toObject(
-                            Group::class.java
-                        )
+
+                        document
+                            .toObject(Group::class.java)
+                            ?.copy(
+                                id = document.id
+                            )
                     }
                     ?.sortedByDescending { group ->
                         group.createdAt
@@ -296,11 +438,12 @@ class GroupRepository(
     }
 
     /*
-     * Creates an invite code such as:
+     * Generates an invite code such as:
      *
      * ABCD-1234
      */
     private fun generateInviteCode(): String {
+
         val rawCode = UUID
             .randomUUID()
             .toString()
