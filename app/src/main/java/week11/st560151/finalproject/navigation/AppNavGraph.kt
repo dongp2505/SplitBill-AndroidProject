@@ -7,6 +7,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.platform.LocalContext
 import androidx.fragment.app.FragmentActivity
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -28,7 +29,6 @@ import week11.st560151.finalproject.ui.settlements.SettlementScreen
 import week11.st560151.finalproject.ui.start.StartScreen
 import week11.st560151.finalproject.viewmodel.AuthViewModel
 import week11.st560151.finalproject.viewmodel.SettlementViewModel
-import androidx.lifecycle.viewmodel.compose.viewModel
 
 @Composable
 fun AppNavGraph(
@@ -42,12 +42,17 @@ fun AppNavGraph(
             Screen.Start.route
         }
 
-    /** Switches between the three bottom-nav tabs, preserving each tab's state. */
-    fun switchTab(route: String) {
+    /*
+     * Switches between the three bottom-navigation tabs.
+     */
+    fun switchTab(
+        route: String
+    ) {
         navController.navigate(route) {
             popUpTo(Screen.Groups.route) {
                 saveState = true
             }
+
             launchSingleTop = true
             restoreState = true
         }
@@ -59,7 +64,7 @@ fun AppNavGraph(
     ) {
 
         /*
-         * START (LANDING) SCREEN
+         * START SCREEN
          */
         composable(
             route = Screen.Start.route
@@ -153,7 +158,7 @@ fun AppNavGraph(
         }
 
         /*
-         * GROUPS SCREEN (post-login landing page)
+         * GROUPS SCREEN
          */
         composable(
             route = Screen.Groups.route
@@ -161,7 +166,9 @@ fun AppNavGraph(
             GroupsScreen(
                 onGroupClick = { groupId ->
                     navController.navigate(
-                        Screen.GroupDetail.createRoute(groupId)
+                        Screen.GroupDetail.createRoute(
+                            groupId
+                        )
                     )
                 },
 
@@ -172,11 +179,15 @@ fun AppNavGraph(
                 },
 
                 onNotificationsClick = {
-                    switchTab(Screen.Notifications.route)
+                    switchTab(
+                        Screen.Notifications.route
+                    )
                 },
 
                 onProfileClick = {
-                    switchTab(Screen.Profile.route)
+                    switchTab(
+                        Screen.Profile.route
+                    )
                 }
             )
         }
@@ -189,11 +200,27 @@ fun AppNavGraph(
         ) {
             NotificationsScreen(
                 onGroupsClick = {
-                    switchTab(Screen.Groups.route)
+                    switchTab(
+                        Screen.Groups.route
+                    )
                 },
 
                 onProfileClick = {
-                    switchTab(Screen.Profile.route)
+                    switchTab(
+                        Screen.Profile.route
+                    )
+                },
+
+                /*
+                 * When a user selects a notification,
+                 * open the group connected to it.
+                 */
+                onNotificationClick = { groupId ->
+                    navController.navigate(
+                        Screen.GroupDetail.createRoute(
+                            groupId
+                        )
+                    )
                 }
             )
         }
@@ -206,11 +233,15 @@ fun AppNavGraph(
         ) {
             ProfileScreen(
                 onGroupsClick = {
-                    switchTab(Screen.Groups.route)
+                    switchTab(
+                        Screen.Groups.route
+                    )
                 },
 
                 onNotificationsClick = {
-                    switchTab(Screen.Notifications.route)
+                    switchTab(
+                        Screen.Notifications.route
+                    )
                 },
 
                 onSignOutClick = {
@@ -264,7 +295,9 @@ fun AppNavGraph(
 
                 onGroupCreated = { groupId ->
                     navController.navigate(
-                        Screen.GroupReady.createRoute(groupId)
+                        Screen.GroupReady.createRoute(
+                            groupId
+                        )
                     )
                 }
             )
@@ -285,9 +318,12 @@ fun AppNavGraph(
                     navController.navigate(
                         Screen.Groups.route
                     ) {
-                        popUpTo(Screen.Groups.route) {
+                        popUpTo(
+                            Screen.Groups.route
+                        ) {
                             inclusive = true
                         }
+
                         launchSingleTop = true
                     }
                 }
@@ -305,8 +341,11 @@ fun AppNavGraph(
                 }
             )
         ) { backStackEntry ->
-            val groupId =
-                backStackEntry.arguments?.getString("groupId").orEmpty()
+
+            val groupId = backStackEntry
+                .arguments
+                ?.getString("groupId")
+                .orEmpty()
 
             GroupReadyScreen(
                 groupId = groupId,
@@ -315,9 +354,12 @@ fun AppNavGraph(
                     navController.navigate(
                         Screen.Groups.route
                     ) {
-                        popUpTo(Screen.Groups.route) {
+                        popUpTo(
+                            Screen.Groups.route
+                        ) {
                             inclusive = true
                         }
+
                         launchSingleTop = true
                     }
                 }
@@ -335,8 +377,11 @@ fun AppNavGraph(
                 }
             )
         ) { backStackEntry ->
-            val groupId =
-                backStackEntry.arguments?.getString("groupId").orEmpty()
+
+            val groupId = backStackEntry
+                .arguments
+                ?.getString("groupId")
+                .orEmpty()
 
             GroupDetailScreen(
                 groupId = groupId,
@@ -347,11 +392,18 @@ fun AppNavGraph(
 
                 onAddExpenseClick = {
                     navController.navigate(
-                        Screen.AddExpense.createRoute(groupId)
+                        Screen.AddExpense.createRoute(
+                            groupId
+                        )
                     )
                 },
 
-                onSettleUpClick = { settleGroupId, payerEmail, receiverEmail, amount ->
+                onSettleUpClick = {
+                        settleGroupId,
+                        payerEmail,
+                        receiverEmail,
+                        amount ->
+
                     navController.navigate(
                         Screen.Settlement.createRoute(
                             groupId = settleGroupId,
@@ -375,8 +427,11 @@ fun AppNavGraph(
                 }
             )
         ) { backStackEntry ->
-            val groupId =
-                backStackEntry.arguments?.getString("groupId").orEmpty()
+
+            val groupId = backStackEntry
+                .arguments
+                ?.getString("groupId")
+                .orEmpty()
 
             AddExpenseScreen(
                 groupId = groupId,
@@ -397,26 +452,67 @@ fun AppNavGraph(
         composable(
             route = Screen.Settlement.route,
             arguments = listOf(
-                navArgument("groupId") { defaultValue = "" },
-                navArgument("payerEmail") { defaultValue = "" },
-                navArgument("receiverEmail") { defaultValue = "" },
-                navArgument("amount") { defaultValue = "0.0" }
+                navArgument("groupId") {
+                    defaultValue = ""
+                },
+
+                navArgument("payerEmail") {
+                    defaultValue = ""
+                },
+
+                navArgument("receiverEmail") {
+                    defaultValue = ""
+                },
+
+                navArgument("amount") {
+                    defaultValue = "0.0"
+                }
             )
         ) { backStackEntry ->
-            val activity =
-                LocalContext.current
-                    .findFragmentActivity()
+
+            val activity = LocalContext
+                .current
+                .findFragmentActivity()
 
             if (activity != null) {
-                val settlementViewModel: SettlementViewModel = viewModel()
+                val settlementViewModel:
+                        SettlementViewModel = viewModel()
 
-                val groupId = backStackEntry.arguments?.getString("groupId").orEmpty()
-                val payerEmail = backStackEntry.arguments?.getString("payerEmail").orEmpty()
-                val receiverEmail = backStackEntry.arguments?.getString("receiverEmail").orEmpty()
-                val amount = backStackEntry.arguments?.getString("amount")?.toDoubleOrNull() ?: 0.0
+                val groupId = backStackEntry
+                    .arguments
+                    ?.getString("groupId")
+                    .orEmpty()
 
-                LaunchedEffect(backStackEntry) {
-                    if (payerEmail.isNotBlank() || receiverEmail.isNotBlank()) {
+                val payerEmail = backStackEntry
+                    .arguments
+                    ?.getString("payerEmail")
+                    .orEmpty()
+
+                val receiverEmail = backStackEntry
+                    .arguments
+                    ?.getString("receiverEmail")
+                    .orEmpty()
+
+                val amount = backStackEntry
+                    .arguments
+                    ?.getString("amount")
+                    ?.toDoubleOrNull()
+                    ?: 0.0
+
+                /*
+                 * Fill the settlement form using the information
+                 * passed from GroupDetailScreen.
+                 */
+                LaunchedEffect(
+                    groupId,
+                    payerEmail,
+                    receiverEmail,
+                    amount
+                ) {
+                    if (
+                        payerEmail.isNotBlank() ||
+                        receiverEmail.isNotBlank()
+                    ) {
                         settlementViewModel.prefill(
                             groupId = groupId,
                             payerEmail = payerEmail,
@@ -428,7 +524,8 @@ fun AppNavGraph(
 
                 SettlementScreen(
                     activity = activity,
-                    settlementViewModel = settlementViewModel,
+                    settlementViewModel =
+                        settlementViewModel,
 
                     onBackClick = {
                         navController.popBackStack()
@@ -447,6 +544,9 @@ fun AppNavGraph(
     }
 }
 
+/*
+ * Finds the FragmentActivity needed for biometric authentication.
+ */
 private tailrec fun Context.findFragmentActivity():
         FragmentActivity? {
 
