@@ -27,6 +27,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ReceiptLong
@@ -69,6 +70,8 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.google.firebase.auth.FirebaseAuth
 import week11.st560151.finalproject.data.model.Expense
@@ -468,7 +471,7 @@ private fun ActivityTab(
         expenses
             .filter { expense ->
                 (selectedCategory == null || expense.category == selectedCategory) &&
-                    (searchQuery.isBlank() || expense.description.contains(searchQuery, ignoreCase = true))
+                        (searchQuery.isBlank() || expense.description.contains(searchQuery, ignoreCase = true))
             }
             .let { list ->
                 when (sortOption) {
@@ -804,6 +807,8 @@ private fun ExpenseDetailsDialog(
         mutableStateOf(expense.receiptBase64)
     }
 
+    var isReceiptEnlarged by remember { mutableStateOf(false) }
+
     val receiptPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia()
     ) { uri: Uri? ->
@@ -882,7 +887,8 @@ private fun ExpenseDetailsDialog(
                             contentDescription = "Receipt photo",
                             modifier = Modifier
                                 .size(72.dp)
-                                .clip(RoundedCornerShape(10.dp)),
+                                .clip(RoundedCornerShape(10.dp))
+                                .clickable { isReceiptEnlarged = true },
                             contentScale = ContentScale.Crop
                         )
 
@@ -900,6 +906,43 @@ private fun ExpenseDetailsDialog(
 
                                 TextButton(onClick = { receiptBase64 = "" }) {
                                     Text("Remove", color = MaterialTheme.colorScheme.error)
+                                }
+                            }
+                        }
+                    }
+
+                    if (isReceiptEnlarged) {
+                        Dialog(
+                            onDismissRequest = { isReceiptEnlarged = false },
+                            properties = DialogProperties(usePlatformDefaultWidth = false)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(Color.Black.copy(alpha = 0.9f))
+                                    .clickable { isReceiptEnlarged = false },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Image(
+                                    bitmap = receiptBitmap.asImageBitmap(),
+                                    contentDescription = "Enlarged receipt photo",
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(16.dp),
+                                    contentScale = ContentScale.Fit
+                                )
+
+                                IconButton(
+                                    onClick = { isReceiptEnlarged = false },
+                                    modifier = Modifier
+                                        .align(Alignment.TopEnd)
+                                        .padding(16.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = "Close",
+                                        tint = Color.White
+                                    )
                                 }
                             }
                         }

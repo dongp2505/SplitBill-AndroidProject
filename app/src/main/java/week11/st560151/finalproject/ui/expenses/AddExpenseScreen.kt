@@ -10,7 +10,9 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -26,8 +28,12 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -55,6 +61,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.google.firebase.auth.FirebaseAuth
 import week11.st560151.finalproject.data.model.Group
@@ -132,6 +140,7 @@ fun AddExpenseScreen(
     var selectedParticipantIds by remember { mutableStateOf<Set<String>>(emptySet()) }
     var customAmounts by remember { mutableStateOf(mapOf<String, String>()) }
     var receiptBase64 by remember { mutableStateOf<String?>(null) }
+    var isReceiptEnlarged by remember { mutableStateOf(false) }
 
     val receiptPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia()
@@ -408,7 +417,8 @@ fun AddExpenseScreen(
                         contentDescription = "Receipt photo",
                         modifier = Modifier
                             .size(72.dp)
-                            .clip(RoundedCornerShape(10.dp)),
+                            .clip(RoundedCornerShape(10.dp))
+                            .clickable { isReceiptEnlarged = true },
                         contentScale = ContentScale.Crop
                     )
 
@@ -416,6 +426,43 @@ fun AddExpenseScreen(
 
                     TextButton(onClick = { receiptBase64 = null }) {
                         Text("Remove", color = MaterialTheme.colorScheme.error)
+                    }
+                }
+
+                if (isReceiptEnlarged) {
+                    Dialog(
+                        onDismissRequest = { isReceiptEnlarged = false },
+                        properties = DialogProperties(usePlatformDefaultWidth = false)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(Color.Black.copy(alpha = 0.9f))
+                                .clickable { isReceiptEnlarged = false },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Image(
+                                bitmap = receiptBitmap.asImageBitmap(),
+                                contentDescription = "Enlarged receipt photo",
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                contentScale = ContentScale.Fit
+                            )
+
+                            IconButton(
+                                onClick = { isReceiptEnlarged = false },
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .padding(16.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = "Close",
+                                    tint = Color.White
+                                )
+                            }
+                        }
                     }
                 }
             }
