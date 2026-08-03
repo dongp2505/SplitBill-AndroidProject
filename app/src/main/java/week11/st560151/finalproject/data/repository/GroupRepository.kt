@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.tasks.await
 import week11.st560151.finalproject.data.model.Group
+import week11.st560151.finalproject.data.model.User
 import java.util.UUID
 
 class GroupRepository(
@@ -379,6 +380,56 @@ class GroupRepository(
 
             Result.failure(exception)
         }
+    }
+
+
+    suspend fun updateGroupName(groupId: String, newName: String): Result<Unit> = runCatching {
+        val cleanName = newName.trim()
+        require(groupId.isNotBlank()) { "Group ID is missing." }
+        require(cleanName.isNotBlank()) { "Group name cannot be empty." }
+        firestore.collection("groups").document(groupId).update("name", cleanName).await()
+    }
+
+    suspend fun updateGroupAvatar(groupId: String, avatarBase64: String): Result<Unit> = runCatching {
+        require(groupId.isNotBlank()) { "Group ID is missing." }
+        firestore.collection("groups").document(groupId)
+            .update("avatarBase64", avatarBase64).await()
+    }
+
+    suspend fun addMemberByEmail(groupId: String, email: String): Result<User> = runCatching {
+        val normalizedEmail = email.trim().lowercase()
+        require(groupId.isNotBlank()) { "Group ID is missing." }
+        require(normalizedEmail.isNotBlank()) { "Enter a member email." }
+
+        val result = userRepository.findUserByEmail(normalizedEmail)
+        val user = result.getOrElse { throw it }
+        require(user.uid.isNotBlank()) { "The user UID is missing." }
+
+        val group = getGroup(groupId).getOrElse { throw it }
+        require(user.uid !in group.memberIds) { "This user is already a member." }
+
+        firestore.collection("groups").document(groupId)
+            .update("memberIds", FieldValue.arrayUnion(user.uid)).await()
+
+        notificationRepository.createNotifications(
+            recipientIds = listOf(user.uid),
+            groupId = groupId,
+            type = "MEMBER_ADDED",
+            title = "Added to group",
+            message = "You were added to ${group.name}",
+            excludeUserId = null
+        )
+        user
+    }
+
+    suspend fun removeMember(groupId: String, memberId: String): Result<Unit> = runCatching {
+        require(groupId.isNotBlank()) { "Group ID is missing." }
+        require(memberId.isNotBlank()) { "Member ID is missing." }
+        val group = getGroup(groupId).getOrElse { throw it }
+        require(memberId in group.memberIds) { "This user is not a member." }
+        require(group.memberIds.size > 1) { "The final member cannot be removed." }
+        firestore.collection("groups").document(groupId)
+            .update("memberIds", FieldValue.arrayRemove(memberId)).await()
     }
 
     /*

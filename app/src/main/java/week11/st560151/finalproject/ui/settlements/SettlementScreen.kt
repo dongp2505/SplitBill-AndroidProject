@@ -1,5 +1,6 @@
 package week11.st560151.finalproject.ui.settlements
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -59,7 +60,11 @@ import week11.st560151.finalproject.util.BiometricAuthenticator
 import week11.st560151.finalproject.viewmodel.SettlementUiState
 import week11.st560151.finalproject.viewmodel.SettlementViewModel
 
-private enum class SettlementStep { Info, Biometric, Confirmed }
+private enum class SettlementStep {
+    Info,
+    Biometric,
+    Confirmed
+}
 
 @Composable
 fun SettlementScreen(
@@ -70,14 +75,21 @@ fun SettlementScreen(
 ) {
     val state by settlementViewModel.uiState.collectAsState()
 
-    var step by remember { mutableStateOf(SettlementStep.Info) }
+    var step by remember {
+        mutableStateOf(SettlementStep.Info)
+    }
 
     val biometricAuthenticator = remember(activity) {
         BiometricAuthenticator(activity)
     }
 
-    val snackbarHostState = remember { SnackbarHostState() }
+    val snackbarHostState = remember {
+        SnackbarHostState()
+    }
 
+    /*
+     * Show ViewModel errors in a Snackbar.
+     */
     LaunchedEffect(state.errorMessage) {
         state.errorMessage?.let { message ->
             snackbarHostState.showSnackbar(message)
@@ -85,6 +97,10 @@ fun SettlementScreen(
         }
     }
 
+    /*
+     * Move to the confirmation screen after Firestore
+     * successfully saves the settlement.
+     */
     LaunchedEffect(state.isCompleted) {
         if (state.isCompleted) {
             step = SettlementStep.Confirmed
@@ -93,18 +109,46 @@ fun SettlementScreen(
 
     val payerName = displayName(state.payerUser)
 
+    /*
+     * Android system Back button handling.
+     *
+     * When the user is on the biometric screen,
+     * pressing the phone's Back button returns to
+     * the settlement information screen.
+     */
+    BackHandler(
+        enabled = step == SettlementStep.Biometric &&
+                !state.isSaving
+    ) {
+        step = SettlementStep.Info
+    }
+
     Scaffold(
-        snackbarHost = { SnackbarHost(snackbarHostState) }
+        snackbarHost = {
+            SnackbarHost(
+                hostState = snackbarHostState
+            )
+        }
     ) { paddingValues ->
 
-        Box(modifier = Modifier.padding(paddingValues)) {
+        Box(
+            modifier = Modifier.padding(paddingValues)
+        ) {
             when (step) {
                 SettlementStep.Info -> {
                     InfoStep(
                         state = state,
                         payerName = payerName,
                         onBackClick = onBackClick,
-                        onRequestSettlement = { step = SettlementStep.Biometric }
+                        onRequestSettlement = {
+                            /*
+                             * Make sure all information is valid
+                             * before opening biometric verification.
+                             */
+                            if (settlementViewModel.validate()) {
+                                step = SettlementStep.Biometric
+                            }
+                        }
                     )
                 }
 
@@ -113,10 +157,28 @@ fun SettlementScreen(
                         payerName = payerName,
                         amount = state.amount,
                         isSaving = state.isSaving,
+
+                        /*
+                         * Visible back-arrow button.
+                         */
+                        onBackClick = {
+                            if (!state.isSaving) {
+                                step = SettlementStep.Info
+                            }
+                        },
+
+                        /*
+                         * Open the Android biometric prompt.
+                         */
                         onScanClick = {
                             biometricAuthenticator.authenticate { result ->
+
                                 when (result) {
                                     BiometricAuthenticator.Result.Success -> {
+                                        /*
+                                         * Biometric succeeded.
+                                         * Now save the settlement to Firestore.
+                                         */
                                         settlementViewModel.completeSettlement()
                                     }
 
@@ -128,18 +190,20 @@ fun SettlementScreen(
 
                                     BiometricAuthenticator.Result.NotEnrolled -> {
                                         settlementViewModel.showError(
-                                            "No biometric or device lock is enrolled."
+                                            "No fingerprint, face scan, PIN, pattern, or password is enrolled."
                                         )
                                     }
 
                                     BiometricAuthenticator.Result.NotAvailable -> {
                                         settlementViewModel.showError(
-                                            "Biometric authentication is unavailable."
+                                            "Biometric authentication is unavailable on this device."
                                         )
                                     }
 
                                     is BiometricAuthenticator.Result.Error -> {
-                                        settlementViewModel.showError(result.message)
+                                        settlementViewModel.showError(
+                                            result.message
+                                        )
                                     }
                                 }
                             }
@@ -171,65 +235,110 @@ private fun InfoStep(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .background(
+                MaterialTheme.colorScheme.background
+            )
             .padding(24.dp)
     ) {
-        CircleBackButton(onClick = onBackClick)
+        /*
+         * Return to the previous app screen.
+         */
+        CircleBackButton(
+            onClick = onBackClick
+        )
 
         Column(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+            horizontalAlignment =
+                Alignment.CenterHorizontally,
+            verticalArrangement =
+                Arrangement.Center
         ) {
             if (state.isLoadingParticipants) {
                 Text(
                     text = "Loading…",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color =
+                        MaterialTheme.colorScheme
+                            .onSurfaceVariant
                 )
             } else {
-                Row(horizontalArrangement = Arrangement.spacedBy((-10).dp)) {
-                    state.payerUser?.let {
-                        AvatarChip(user = it, size = 56.dp, borderColor = MaterialTheme.colorScheme.background)
+                Row(
+                    horizontalArrangement =
+                        Arrangement.spacedBy((-10).dp)
+                ) {
+                    state.payerUser?.let { payer ->
+                        AvatarChip(
+                            user = payer,
+                            size = 56.dp,
+                            borderColor =
+                                MaterialTheme.colorScheme
+                                    .background
+                        )
                     }
 
-                    state.receiverUser?.let {
-                        AvatarChip(user = it, size = 56.dp, borderColor = MaterialTheme.colorScheme.background)
+                    state.receiverUser?.let { receiver ->
+                        AvatarChip(
+                            user = receiver,
+                            size = 56.dp,
+                            borderColor =
+                                MaterialTheme.colorScheme
+                                    .background
+                        )
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(
+                    modifier = Modifier.height(16.dp)
+                )
 
                 Text(
                     text = "$${state.amount}",
-                    style = MaterialTheme.typography.headlineMedium,
+                    style =
+                        MaterialTheme.typography
+                            .headlineMedium,
                     fontWeight = FontWeight.Bold
                 )
 
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(
+                    modifier = Modifier.height(4.dp)
+                )
 
                 Text(
                     text = "$payerName owes you",
                     fontWeight = FontWeight.Bold
                 )
 
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(
+                    modifier = Modifier.height(24.dp)
+                )
 
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
+                        .clip(
+                            RoundedCornerShape(12.dp)
+                        )
                         .background(CardBackground)
-                        .border(1.dp, CardBorder, RoundedCornerShape(12.dp))
+                        .border(
+                            width = 1.dp,
+                            color = CardBorder,
+                            shape =
+                                RoundedCornerShape(12.dp)
+                        )
                         .padding(16.dp)
                 ) {
                     Text(
-                        text = "Confirm you've settled this outside the app. " +
-                            "Both of you will need to verify with a fingerprint " +
-                            "or face scan before the balance updates.",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        style = MaterialTheme.typography.bodyMedium
+                        text =
+                            "Confirm that you settled this payment outside the app. " +
+                                    "You must verify your identity before the settlement is saved.",
+                        color =
+                            MaterialTheme.colorScheme
+                                .onSurfaceVariant,
+                        style =
+                            MaterialTheme.typography
+                                .bodyMedium
                     )
                 }
             }
@@ -237,7 +346,11 @@ private fun InfoStep(
 
         PrimaryButton(
             text = "Request Settlement",
-            enabled = !state.isLoadingParticipants,
+            enabled =
+                !state.isLoadingParticipants &&
+                        state.payerUser != null &&
+                        state.receiverUser != null &&
+                        state.amount.isNotBlank(),
             onClick = onRequestSettlement
         )
     }
@@ -248,42 +361,66 @@ private fun BiometricStep(
     payerName: String,
     amount: String,
     isSaving: Boolean,
+    onBackClick: () -> Unit,
     onScanClick: () -> Unit
 ) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .background(
+                MaterialTheme.colorScheme.background
+            )
             .padding(24.dp)
     ) {
+        /*
+         * This back button lets the user cancel biometric
+         * and return to the previous settlement screen.
+         */
+        CircleBackButton(
+            onClick = onBackClick
+        )
+
         Column(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+            horizontalAlignment =
+                Alignment.CenterHorizontally,
+            verticalArrangement =
+                Arrangement.Center
         ) {
             PulsingFingerprint()
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(
+                modifier = Modifier.height(24.dp)
+            )
 
             Text(
                 text = "Confirm on your device",
-                style = MaterialTheme.typography.headlineSmall,
+                style =
+                    MaterialTheme.typography
+                        .headlineSmall,
                 fontWeight = FontWeight.Bold
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(
+                modifier = Modifier.height(8.dp)
+            )
 
             Text(
-                text = "Touch the fingerprint sensor to verify $$amount\n$payerName owes you",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                text =
+                    "Touch the fingerprint sensor to verify $$amount\n" +
+                            "$payerName owes you",
+                color =
+                    MaterialTheme.colorScheme
+                        .onSurfaceVariant,
                 textAlign = TextAlign.Center
             )
         }
 
         PrimaryButton(
             text = "Scan fingerprint",
+            enabled = !isSaving,
             isLoading = isSaving,
             onClick = onScanClick
         )
@@ -298,15 +435,19 @@ private fun ConfirmedStep(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .background(
+                MaterialTheme.colorScheme.background
+            )
             .padding(24.dp)
     ) {
         Column(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+            horizontalAlignment =
+                Alignment.CenterHorizontally,
+            verticalArrangement =
+                Arrangement.Center
         ) {
             Box(
                 modifier = Modifier
@@ -318,20 +459,28 @@ private fun ConfirmedStep(
                 BouncingDots()
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(
+                modifier = Modifier.height(24.dp)
+            )
 
             Text(
                 text = "You're confirmed",
-                style = MaterialTheme.typography.headlineSmall,
+                style =
+                    MaterialTheme.typography
+                        .headlineSmall,
                 fontWeight = FontWeight.Bold
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(
+                modifier = Modifier.height(8.dp)
+            )
 
             Text(
-                text = "Waiting for $payerName to confirm on their device " +
-                    "before the balance updates.",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                text =
+                    "The settlement with $payerName was saved successfully.",
+                color =
+                    MaterialTheme.colorScheme
+                        .onSurfaceVariant,
                 textAlign = TextAlign.Center
             )
         }
@@ -345,13 +494,19 @@ private fun ConfirmedStep(
 
 @Composable
 private fun PulsingFingerprint() {
-    val infiniteTransition = rememberInfiniteTransition(label = "fingerprint_pulse")
+    val infiniteTransition =
+        rememberInfiniteTransition(
+            label = "fingerprint_pulse"
+        )
 
     val scale by infiniteTransition.animateFloat(
         initialValue = 1f,
         targetValue = 1.12f,
         animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 900, easing = FastOutSlowInEasing),
+            animation = tween(
+                durationMillis = 900,
+                easing = FastOutSlowInEasing
+            ),
             repeatMode = RepeatMode.Reverse
         ),
         label = "fingerprint_scale"
@@ -366,8 +521,11 @@ private fun PulsingFingerprint() {
         contentAlignment = Alignment.Center
     ) {
         Image(
-            painter = painterResource(id = R.drawable.ic_fingerprint),
-            contentDescription = null,
+            painter = painterResource(
+                id = R.drawable.ic_fingerprint
+            ),
+            contentDescription =
+                "Fingerprint verification",
             modifier = Modifier.size(64.dp)
         )
     }
@@ -375,10 +533,17 @@ private fun PulsingFingerprint() {
 
 @Composable
 private fun BouncingDots() {
-    val transition = rememberInfiniteTransition(label = "bouncing_dots")
+    val transition =
+        rememberInfiniteTransition(
+            label = "bouncing_dots"
+        )
 
-    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+    Row(
+        horizontalArrangement =
+            Arrangement.spacedBy(6.dp)
+    ) {
         repeat(3) { index ->
+
             val offsetY by transition.animateFloat(
                 initialValue = 0f,
                 targetValue = -8f,
@@ -398,13 +563,17 @@ private fun BouncingDots() {
                     .offset(y = offsetY.dp)
                     .size(8.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFF9E9E9E))
+                    .background(
+                        Color(0xFF9E9E9E)
+                    )
             )
         }
     }
 }
 
-private fun displayName(user: User?): String {
+private fun displayName(
+    user: User?
+): String {
     if (user == null) {
         return "Member"
     }

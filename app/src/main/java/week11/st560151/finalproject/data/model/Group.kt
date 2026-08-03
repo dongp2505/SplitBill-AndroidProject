@@ -7,5 +7,6 @@ data class Group(
     val ownerId: String = "",
     val memberIds: List<String> = emptyList(),
     val inviteCode: String = "",
+    val avatarBase64: String = "",
     val createdAt: Long = 0L
 )

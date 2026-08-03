@@ -10,20 +10,20 @@ class SettlementRepository(
     private val firestore: FirebaseFirestore =
         FirebaseFirestore.getInstance(),
 
-    private val notificationRepository: NotificationRepository =
+    private val notificationRepository:
+    NotificationRepository =
         NotificationRepository()
 ) {
 
     /*
-     * Finds a registered SplitBill user by email.
+     * Find one registered user by email address.
      */
     suspend fun findUserByEmail(
         email: String
     ): Result<User> {
         return try {
-            val normalizedEmail = email
-                .trim()
-                .lowercase()
+            val normalizedEmail =
+                email.trim().lowercase()
 
             if (normalizedEmail.isBlank()) {
                 throw IllegalArgumentException(
@@ -41,30 +41,26 @@ class SettlementRepository(
                 .get()
                 .await()
 
-            val document = snapshot
-                .documents
-                .firstOrNull()
-                ?: throw IllegalArgumentException(
-                    "No registered user was found with $normalizedEmail."
-                )
+            val document =
+                snapshot.documents.firstOrNull()
+                    ?: throw IllegalArgumentException(
+                        "No registered user was found with $normalizedEmail."
+                    )
 
-            val user = document
-                .toObject(User::class.java)
-                ?: throw IllegalStateException(
-                    "Unable to read the user profile."
+            val user =
+                document.toObject(
+                    User::class.java
                 )
+                    ?: throw IllegalStateException(
+                        "Unable to read the user profile."
+                    )
 
-            /*
-             * Some older user documents might not contain
-             * the UID field.
-             *
-             * In that case, use the Firestore document ID.
-             */
-            val resolvedUser = user.copy(
-                uid = user.uid.ifBlank {
-                    document.id
-                }
-            )
+            val resolvedUser =
+                user.copy(
+                    uid = user.uid.ifBlank {
+                        document.id
+                    }
+                )
 
             Result.success(resolvedUser)
 
@@ -74,10 +70,7 @@ class SettlementRepository(
     }
 
     /*
-     * Saves a completed settlement.
-     *
-     * After saving the settlement, this function creates
-     * notifications for the other group members.
+     * Save a completed settlement, then send notifications.
      */
     suspend fun saveSettlement(
         groupId: String,
@@ -88,46 +81,36 @@ class SettlementRepository(
         createdByName: String
     ): Result<String> {
         return try {
-
-            /*
-             * Validate group ID.
-             */
             if (groupId.isBlank()) {
                 throw IllegalArgumentException(
                     "Group ID is missing."
                 )
             }
 
-            /*
-             * Validate the payer.
-             */
+            if (createdById.isBlank()) {
+                throw IllegalArgumentException(
+                    "Creator ID is missing."
+                )
+            }
+
             if (payer.uid.isBlank()) {
                 throw IllegalArgumentException(
                     "Payer ID is missing."
                 )
             }
 
-            /*
-             * Validate the receiver.
-             */
             if (receiver.uid.isBlank()) {
                 throw IllegalArgumentException(
                     "Receiver ID is missing."
                 )
             }
 
-            /*
-             * A user cannot settle with themselves.
-             */
             if (payer.uid == receiver.uid) {
                 throw IllegalArgumentException(
                     "Payer and receiver cannot be the same user."
                 )
             }
 
-            /*
-             * Settlement amount must be positive.
-             */
             if (amount <= 0.0) {
                 throw IllegalArgumentException(
                     "Settlement amount must be greater than zero."
@@ -135,64 +118,8 @@ class SettlementRepository(
             }
 
             /*
-             * Create a new Firestore document reference.
-             */
-            val settlementDocument = firestore
-                .collection("settlements")
-                .document()
-
-            /*
-             * Use the user's display name.
-             *
-             * If the display name is empty, use their email.
-             */
-            val payerDisplayName =
-                payer.displayName.ifBlank {
-                    payer.email
-                }
-
-            val receiverDisplayName =
-                receiver.displayName.ifBlank {
-                    receiver.email
-                }
-
-            /*
-             * Create the Settlement object.
-             */
-            val settlement = Settlement(
-                id = settlementDocument.id,
-                groupId = groupId,
-
-                payerId = payer.uid,
-                payerName = payerDisplayName,
-                payerEmail = payer.email,
-
-                receiverId = receiver.uid,
-                receiverName = receiverDisplayName,
-                receiverEmail = receiver.email,
-
-                amount = amount,
-                status = "COMPLETED",
-
-                createdById = createdById,
-                createdByName = createdByName,
-
-                confirmedWithBiometric = true,
-                createdAt = System.currentTimeMillis()
-            )
-
-            /*
-             * Save the settlement to Firestore.
-             */
-            settlementDocument
-                .set(settlement)
-                .await()
-
-            /*
-             * Load the group document.
-             *
-             * We need the group member IDs so we know
-             * which users should receive notifications.
+             * Confirm that the group exists and that the
+             * current user belongs to the group.
              */
             val groupDocument = firestore
                 .collection("groups")
@@ -206,74 +133,146 @@ class SettlementRepository(
                 )
             }
 
-            /*
-             * Read the memberIds array from the group.
-             *
-             * Firestore returns arrays as List<*>, so
-             * filterIsInstance safely gets String values.
-             */
-            val memberIds = (
-                    groupDocument.get("memberIds") as? List<*>
-                    )
-                ?.filterIsInstance<String>()
-                ?.filter { memberId ->
-                    memberId.isNotBlank()
+            val memberIds =
+                (
+                        groupDocument.get(
+                            "memberIds"
+                        ) as? List<*>
+                        )
+                    ?.filterIsInstance<String>()
+                    ?.filter { memberId ->
+                        memberId.isNotBlank()
+                    }
+                    ?.distinct()
+                    ?: emptyList()
+
+            if (createdById !in memberIds) {
+                throw IllegalStateException(
+                    "You are not a member of this group."
+                )
+            }
+
+            if (payer.uid !in memberIds) {
+                throw IllegalStateException(
+                    "The payer is not a member of this group."
+                )
+            }
+
+            if (receiver.uid !in memberIds) {
+                throw IllegalStateException(
+                    "The receiver is not a member of this group."
+                )
+            }
+
+            val settlementDocument =
+                firestore
+                    .collection("settlements")
+                    .document()
+
+            val payerDisplayName =
+                payer.displayName.ifBlank {
+                    payer.email.substringBefore("@")
                 }
-                ?.distinct()
-                ?: emptyList()
+
+            val receiverDisplayName =
+                receiver.displayName.ifBlank {
+                    receiver.email.substringBefore("@")
+                }
+
+            val creatorDisplayName =
+                createdByName.ifBlank {
+                    "User"
+                }
+
+            val settlement =
+                Settlement(
+                    id = settlementDocument.id,
+                    groupId = groupId,
+
+                    payerId = payer.uid,
+                    payerName =
+                        payerDisplayName,
+                    payerEmail =
+                        payer.email
+                            .trim()
+                            .lowercase(),
+
+                    receiverId = receiver.uid,
+                    receiverName =
+                        receiverDisplayName,
+                    receiverEmail =
+                        receiver.email
+                            .trim()
+                            .lowercase(),
+
+                    amount = amount,
+                    status = "COMPLETED",
+
+                    createdById =
+                        createdById,
+                    createdByName =
+                        creatorDisplayName,
+
+                    confirmedWithBiometric =
+                        true,
+
+                    createdAt =
+                        System.currentTimeMillis()
+                )
 
             /*
-             * Format the settlement amount with two decimals.
-             *
-             * Example:
-             * 20 becomes 20.00
+             * This write must match the /settlements
+             * Firestore security rule.
              */
-            val formattedAmount = String.format(
-                Locale.US,
-                "%.2f",
-                amount
-            )
+            settlementDocument
+                .set(settlement)
+                .await()
+
+            val formattedAmount =
+                String.format(
+                    Locale.US,
+                    "%.2f",
+                    amount
+                )
 
             /*
-             * Create a notification for the other group members.
-             *
-             * The user who submitted the settlement is excluded
-             * because they already know that it was completed.
+             * Notify every group member except the
+             * user who completed the settlement.
              */
             notificationRepository
                 .createNotifications(
                     recipientIds = memberIds,
                     groupId = groupId,
-                    type = "SETTLEMENT_COMPLETED",
-                    title = "Payment settled",
-                    message = "$payerDisplayName settled " +
-                            "\$$formattedAmount with $receiverDisplayName",
-                    excludeUserId = createdById
+                    type =
+                        "SETTLEMENT_COMPLETED",
+                    title =
+                        "Payment settled",
+                    message =
+                        "$payerDisplayName settled " +
+                                "\$$formattedAmount with " +
+                                receiverDisplayName,
+                    excludeUserId =
+                        createdById
                 )
                 .getOrThrow()
 
-            /*
-             * Return the ID of the saved settlement.
-             */
-            Result.success(settlementDocument.id)
+            Result.success(
+                settlementDocument.id
+            )
 
         } catch (exception: Exception) {
             Result.failure(exception)
         }
     }
 
-    /*
-     * Gets all completed settlements for one group.
-     *
-     * This data can be used when calculating group balances.
-     */
     suspend fun getSettlementsOnce(
         groupId: String
     ): Result<List<Settlement>> {
         return try {
-
             if (groupId.isBlank()) {
-                return Result.success(emptyList())
+                return Result.success(
+                    emptyList()
+                )
             }
 
             val snapshot = firestore
@@ -285,23 +284,20 @@ class SettlementRepository(
                 .get()
                 .await()
 
-            val settlements = snapshot
-                .documents
-                .mapNotNull { document ->
-
-                    val settlement = document.toObject(
-                        Settlement::class.java
-                    )
-
-                    settlement?.copy(
-                        id = settlement.id.ifBlank {
-                            document.id
-                        }
-                    )
-                }
-                .sortedByDescending { settlement ->
-                    settlement.createdAt
-                }
+            val settlements =
+                snapshot.documents
+                    .mapNotNull { document ->
+                        document.toObject(
+                            Settlement::class.java
+                        )?.copy(
+                            id =
+                                document.id
+                        )
+                    }
+                    .sortedByDescending {
+                            settlement ->
+                        settlement.createdAt
+                    }
 
             Result.success(settlements)
 

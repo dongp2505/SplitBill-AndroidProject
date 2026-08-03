@@ -21,6 +21,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -30,6 +32,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -45,6 +48,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -67,6 +73,17 @@ import week11.st560151.finalproject.util.BalanceCalculator
 import week11.st560151.finalproject.viewmodel.ExpenseViewModel
 import week11.st560151.finalproject.viewmodel.GroupViewModel
 import java.util.Locale
+import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.net.Uri
+import android.util.Base64
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.size
+import java.io.ByteArrayOutputStream
 
 private enum class GroupTab { Activity, Balances }
 
@@ -90,9 +107,11 @@ fun GroupDetailScreen(
     val membersState by expenseViewModel.membersState.collectAsState()
     val balancesState by expenseViewModel.balancesState.collectAsState()
     val deleteState by expenseViewModel.deleteState.collectAsState()
+    val editGroupState by groupViewModel.editGroupState.collectAsState()
 
     var expenseBeingEdited by remember { mutableStateOf<Expense?>(null) }
     var selectedTab by remember { mutableStateOf(GroupTab.Activity) }
+    var showEditGroupDialog by remember { mutableStateOf(false) }
 
     val currentUserId = FirebaseAuth.getInstance().currentUser?.uid.orEmpty()
 
@@ -165,9 +184,21 @@ fun GroupDetailScreen(
                     }
                 }
 
-                Row(horizontalArrangement = Arrangement.spacedBy((-8).dp)) {
-                    members.take(4).forEach { user ->
-                        AvatarChip(user = user, borderColor = MaterialTheme.colorScheme.background)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    GroupAvatar(group = group, size = 40.dp)
+
+                    Spacer(modifier = Modifier.width(6.dp))
+
+                    Row(horizontalArrangement = Arrangement.spacedBy((-8).dp)) {
+                        members.take(4).forEach { user ->
+                            AvatarChip(user = user, borderColor = MaterialTheme.colorScheme.background)
+                        }
+                    }
+
+                    if (group != null && currentUserId in group.memberIds) {
+                        IconButton(onClick = { showEditGroupDialog = true }) {
+                            Icon(Icons.Default.Edit, contentDescription = "Edit group")
+                        }
                     }
                 }
             }
@@ -250,15 +281,47 @@ fun GroupDetailScreen(
         }
     }
 
+    if (showEditGroupDialog && group != null) {
+        EditGroupDialog(
+            group = group,
+            members = members,
+            editState = editGroupState,
+            currentUserId = currentUserId,
+            onDismiss = {
+                showEditGroupDialog = false
+                groupViewModel.resetEditGroupState()
+            },
+            onSaveName = { groupViewModel.updateGroupName(group.id, it) },
+            onSaveAvatar = { groupViewModel.updateGroupAvatar(group.id, it) },
+            onAddMember = { groupViewModel.addGroupMember(group.id, it) },
+            onRemoveMember = { groupViewModel.removeGroupMember(group.id, it) },
+            onLeaveGroup = {
+                groupViewModel.removeGroupMember(group.id, currentUserId)
+                showEditGroupDialog = false
+                onBackClick()
+            }
+        )
+    }
+
     expenseBeingEdited?.let { expense ->
-        EditExpenseDialog(
+        ExpenseDetailsDialog(
             expense = expense,
+
+            // Only the Firebase user who originally created
+            // this expense can edit or delete it.
+            canEdit = expense.createdBy == currentUserId,
+
             isDeleting = deleteState is UiState.Loading,
-            onDismiss = { expenseBeingEdited = null },
-            onSave = { updated ->
-                expenseViewModel.updateExpense(updated)
+
+            onDismiss = {
                 expenseBeingEdited = null
             },
+
+            onSave = { updatedExpense ->
+                expenseViewModel.updateExpense(updatedExpense)
+                expenseBeingEdited = null
+            },
+
             onDelete = {
                 expenseViewModel.deleteExpense(expense.id)
             }
@@ -532,84 +595,368 @@ private fun ExpenseRow(
 }
 
 @Composable
-private fun EditExpenseDialog(
+private fun ExpenseDetailsDialog(
     expense: Expense,
+    canEdit: Boolean,
     isDeleting: Boolean,
     onDismiss: () -> Unit,
     onSave: (Expense) -> Unit,
     onDelete: () -> Unit
 ) {
-    var description by remember(expense.id) { mutableStateOf(expense.description) }
-    var amountText by remember(expense.id) { mutableStateOf(expense.amount.toString()) }
+    var description by remember(expense.id) {
+        mutableStateOf(expense.description)
+    }
+
+    var amountText by remember(expense.id) {
+        mutableStateOf(expense.amount.toString())
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Edit expense") },
+
+        title = {
+            Text(
+                text = if (canEdit) {
+                    "Edit expense"
+                } else {
+                    "Price details"
+                }
+            )
+        },
+
         text = {
             Column {
                 OutlinedTextField(
                     value = description,
-                    onValueChange = { description = it },
-                    label = { Text("Description") },
+                    onValueChange = { newValue ->
+                        if (canEdit) {
+                            description = newValue
+                        }
+                    },
+                    label = {
+                        Text("Description")
+                    },
+                    readOnly = !canEdit,
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(
+                    modifier = Modifier.height(8.dp)
+                )
 
                 OutlinedTextField(
                     value = amountText,
-                    onValueChange = { amountText = it },
-                    label = { Text("Amount") },
+                    onValueChange = { newValue ->
+                        if (canEdit) {
+                            amountText = newValue
+                        }
+                    },
+                    label = {
+                        Text("Amount")
+                    },
+                    readOnly = !canEdit,
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
+
+                if (!canEdit) {
+                    Spacer(
+                        modifier = Modifier.height(8.dp)
+                    )
+
+                    Text(
+                        text = "Only the person who added this expense can edit or delete it.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
             }
         },
+
         confirmButton = {
-            Button(
-                onClick = {
-                    val amount = amountText.toDoubleOrNull() ?: expense.amount
+            if (canEdit) {
+                Button(
+                    onClick = {
+                        val newAmount =
+                            amountText.toDoubleOrNull()
 
-                    // Equal-split shares scale with the new amount; custom
-                    // splits are left as-is since only description/amount
-                    // are editable from this quick dialog.
-                    val isEvenlySplit = expense.shares.values.toSet().size <= 1
+                        if (
+                            description.trim().isNotBlank() &&
+                            newAmount != null &&
+                            newAmount > 0.0
+                        ) {
+                            // Equal-split shares scale with the new amount.
+                            // Custom splits remain unchanged.
+                            val isEvenlySplit =
+                                expense.shares.values
+                                    .toSet()
+                                    .size <= 1
 
-                    val updatedShares = if (isEvenlySplit && expense.participantIds.isNotEmpty()) {
-                        val each = amount / expense.participantIds.size
-                        expense.participantIds.associateWith { each }
-                    } else {
-                        expense.shares
+                            val updatedShares =
+                                if (
+                                    isEvenlySplit &&
+                                    expense.participantIds.isNotEmpty()
+                                ) {
+                                    val each =
+                                        newAmount /
+                                                expense.participantIds.size
+
+                                    expense.participantIds
+                                        .associateWith {
+                                            each
+                                        }
+                                } else {
+                                    expense.shares
+                                }
+
+                            onSave(
+                                expense.copy(
+                                    description =
+                                        description.trim(),
+                                    amount = newAmount,
+                                    shares = updatedShares
+                                )
+                            )
+                        }
+                    }
+                ) {
+                    Text("Save")
+                }
+            } else {
+                Button(
+                    onClick = onDismiss
+                ) {
+                    Text("Close")
+                }
+            }
+        },
+
+        dismissButton = {
+            if (canEdit) {
+                Row {
+                    TextButton(
+                        onClick = onDelete,
+                        enabled = !isDeleting
+                    ) {
+                        Text(
+                            text = if (isDeleting) {
+                                "Deleting…"
+                            } else {
+                                "Delete"
+                            },
+                            color =
+                                MaterialTheme.colorScheme.error
+                        )
                     }
 
-                    onSave(
-                        expense.copy(
-                            description = description.trim(),
-                            amount = amount,
-                            shares = updatedShares
-                        )
-                    )
-                }
-            ) {
-                Text("Save")
-            }
-        },
-        dismissButton = {
-            Row {
-                TextButton(onClick = onDelete, enabled = !isDeleting) {
-                    Text(
-                        text = if (isDeleting) "Deleting…" else "Delete",
-                        color = MaterialTheme.colorScheme.error
-                    )
-                }
-
-                TextButton(onClick = onDismiss) {
-                    Text("Cancel")
+                    TextButton(
+                        onClick = onDismiss
+                    ) {
+                        Text("Cancel")
+                    }
                 }
             }
         }
     )
+}
+
+
+private const val GROUP_AVATAR_MAX = 180
+private const val GROUP_AVATAR_QUALITY = 55
+
+private fun groupUriToBase64(context: Context, uri: Uri): String? {
+    return try {
+        val input = context.contentResolver.openInputStream(uri) ?: return null
+        val original = BitmapFactory.decodeStream(input) ?: return null
+        input.close()
+        val scale = minOf(
+            GROUP_AVATAR_MAX.toFloat() / original.width,
+            GROUP_AVATAR_MAX.toFloat() / original.height,
+            1f
+        )
+        val resized = Bitmap.createScaledBitmap(
+            original,
+            (original.width * scale).toInt().coerceAtLeast(1),
+            (original.height * scale).toInt().coerceAtLeast(1),
+            true
+        )
+        val output = ByteArrayOutputStream()
+        resized.compress(Bitmap.CompressFormat.JPEG, GROUP_AVATAR_QUALITY, output)
+        Base64.encodeToString(output.toByteArray(), Base64.NO_WRAP)
+    } catch (_: Exception) {
+        null
+    }
+}
+
+private fun groupBase64ToBitmap(value: String): Bitmap? {
+    return try {
+        val bytes = Base64.decode(value, Base64.NO_WRAP)
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+    } catch (_: Exception) {
+        null
+    }
+}
+
+@Composable
+private fun GroupAvatar(group: Group?, size: androidx.compose.ui.unit.Dp) {
+    val bitmap = group?.avatarBase64?.takeIf { it.isNotBlank() }?.let(::groupBase64ToBitmap)
+    Box(
+        modifier = Modifier.size(size).clip(CircleShape).background(MaterialTheme.colorScheme.tertiary),
+        contentAlignment = Alignment.Center
+    ) {
+        if (bitmap != null) {
+            Image(
+                bitmap = bitmap.asImageBitmap(),
+                contentDescription = "Group avatar",
+                modifier = Modifier.fillMaxSize().clip(CircleShape),
+                contentScale = ContentScale.Crop
+            )
+        } else {
+            Text(
+                text = group?.name?.firstOrNull()?.uppercaseChar()?.toString() ?: "G",
+                fontWeight = FontWeight.Bold
+            )
+        }
+    }
+}
+
+@Composable
+private fun EditGroupDialog(
+    group: Group,
+    members: List<User>,
+    editState: UiState<String>,
+    currentUserId: String,
+    onDismiss: () -> Unit,
+    onSaveName: (String) -> Unit,
+    onSaveAvatar: (String) -> Unit,
+    onAddMember: (String) -> Unit,
+    onRemoveMember: (String) -> Unit,
+    onLeaveGroup: () -> Unit
+) {
+    val context = LocalContext.current
+    var name by remember(group.id, group.name) { mutableStateOf(group.name) }
+    var email by remember(group.id) { mutableStateOf("") }
+    var memberToRemove by remember { mutableStateOf<User?>(null) }
+    val loading = editState is UiState.Loading
+
+    val picker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        uri?.let {
+            groupUriToBase64(context, it)?.let(onSaveAvatar)
+        }
+    }
+
+    AlertDialog(
+        onDismissRequest = { if (!loading) onDismiss() },
+        title = { Text("Manage group") },
+        text = {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                item {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        GroupAvatar(group, 56.dp)
+                        Spacer(Modifier.width(12.dp))
+                        Button(
+                            onClick = {
+                                picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                            },
+                            enabled = !loading
+                        ) { Text("Change avatar") }
+                    }
+                }
+                item {
+                    OutlinedTextField(
+                        value = name,
+                        onValueChange = { name = it },
+                        label = { Text("Group name") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = !loading
+                    )
+                }
+                item {
+                    Button(
+                        onClick = { onSaveName(name.trim()) },
+                        enabled = !loading && name.trim().isNotBlank() && name.trim() != group.name,
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("Save group name") }
+                }
+                item { HorizontalDivider() }
+                item {
+                    OutlinedTextField(
+                        value = email,
+                        onValueChange = { email = it },
+                        label = { Text("Registered user email") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = !loading
+                    )
+                }
+                item {
+                    Button(
+                        onClick = {
+                            onAddMember(email.trim())
+                            email = ""
+                        },
+                        enabled = !loading && email.trim().isNotBlank(),
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("Add member") }
+                }
+                item { HorizontalDivider() }
+                items(members, key = { it.uid }) { member ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            AvatarChip(member, borderColor = MaterialTheme.colorScheme.background)
+                            Spacer(Modifier.width(8.dp))
+                            Column {
+                                Text(member.displayName.ifBlank { member.email }, fontWeight = FontWeight.Bold)
+                                if (member.uid == currentUserId) Text("You", style = MaterialTheme.typography.bodySmall)
+                            }
+                        }
+                        IconButton(
+                            onClick = { memberToRemove = member },
+                            enabled = !loading && group.memberIds.size > 1
+                        ) {
+                            Icon(Icons.Default.Delete, contentDescription = "Remove member", tint = MaterialTheme.colorScheme.error)
+                        }
+                    }
+                }
+                item {
+                    TextButton(
+                        onClick = onLeaveGroup,
+                        enabled = !loading && group.memberIds.size > 1,
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("Leave group", color = MaterialTheme.colorScheme.error) }
+                }
+                when (editState) {
+                    is UiState.Error -> item { ErrorText(editState.message) }
+                    is UiState.Success -> item { Text(editState.data, color = MaterialTheme.colorScheme.tertiary) }
+                    else -> Unit
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss, enabled = !loading) { Text("Done") } }
+    )
+
+    memberToRemove?.let { member ->
+        AlertDialog(
+            onDismissRequest = { memberToRemove = null },
+            title = { Text(if (member.uid == currentUserId) "Leave group?" else "Remove member?") },
+            text = { Text(if (member.uid == currentUserId) "Remove yourself from ${group.name}?" else "Remove ${member.displayName.ifBlank { member.email }} from ${group.name}?") },
+            confirmButton = {
+                Button(onClick = {
+                    if (member.uid == currentUserId) onLeaveGroup() else onRemoveMember(member.uid)
+                    memberToRemove = null
+                }) { Text("Remove") }
+            },
+            dismissButton = { TextButton(onClick = { memberToRemove = null }) { Text("Cancel") } }
+        )
+    }
 }
 
 private fun formatMoney(amount: Double): String {

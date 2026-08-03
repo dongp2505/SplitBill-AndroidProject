@@ -9,7 +9,11 @@ import week11.st560151.finalproject.data.model.Expense
 
 class ExpenseRepository(
     private val firestore: FirebaseFirestore =
-        FirebaseFirestore.getInstance()
+        FirebaseFirestore.getInstance(),
+
+    private val notificationRepository:
+    NotificationRepository =
+        NotificationRepository()
 ) {
 
     private fun collection() =
@@ -27,36 +31,117 @@ class ExpenseRepository(
     ): Result<String> {
         return try {
             if (description.isBlank()) {
-                throw IllegalArgumentException("Description is required.")
+                throw IllegalArgumentException(
+                    "Description is required."
+                )
             }
 
             if (amount <= 0.0) {
-                throw IllegalArgumentException("Amount must be greater than zero.")
+                throw IllegalArgumentException(
+                    "Amount must be greater than zero."
+                )
             }
 
             if (participantIds.isEmpty()) {
-                throw IllegalArgumentException("Select at least one participant.")
+                throw IllegalArgumentException(
+                    "Select at least one participant."
+                )
             }
 
-            val document = collection().document()
+            if (groupId.isBlank()) {
+                throw IllegalArgumentException(
+                    "Group ID is missing."
+                )
+            }
 
-            val expense = Expense(
-                id = document.id,
-                groupId = groupId,
-                description = description.trim(),
-                amount = amount,
-                category = category,
-                paidBy = paidBy,
-                participantIds = participantIds,
-                shares = shares,
-                createdBy = createdBy,
-                createdAt = System.currentTimeMillis(),
-                updatedAt = System.currentTimeMillis()
+            if (createdBy.isBlank()) {
+                throw IllegalArgumentException(
+                    "Creator UID is missing."
+                )
+            }
+
+            val document =
+                collection().document()
+
+            val expense =
+                Expense(
+                    id = document.id,
+                    groupId = groupId,
+                    description =
+                        description.trim(),
+                    amount = amount,
+                    category = category,
+                    paidBy = paidBy,
+                    participantIds =
+                        participantIds,
+                    shares = shares,
+                    createdBy = createdBy,
+                    createdAt =
+                        System.currentTimeMillis(),
+                    updatedAt =
+                        System.currentTimeMillis()
+                )
+
+            /*
+             * Save the expense first.
+             */
+            document
+                .set(expense)
+                .await()
+
+            /*
+             * Load the group so we know which users
+             * should receive an in-app notification.
+             */
+            val groupDocument =
+                firestore
+                    .collection("groups")
+                    .document(groupId)
+                    .get()
+                    .await()
+
+            val memberIds =
+                (
+                        groupDocument.get(
+                            "memberIds"
+                        ) as? List<*>
+                        )
+                    ?.filterIsInstance<String>()
+                    ?.filter { memberId ->
+                        memberId.isNotBlank()
+                    }
+                    ?.distinct()
+                    ?: emptyList()
+
+            val formattedAmount =
+                String.format(
+                    java.util.Locale.US,
+                    "%.2f",
+                    amount
+                )
+
+            /*
+             * Create one Firestore notification for
+             * every group member except the person
+             * who added the expense.
+             */
+            notificationRepository
+                .createNotifications(
+                    recipientIds = memberIds,
+                    groupId = groupId,
+                    type = "EXPENSE_ADDED",
+                    title = "New expense",
+                    message =
+                        "${description.trim()} - " +
+                                "\$$formattedAmount",
+                    excludeUserId = createdBy
+                )
+                .getOrThrow()
+
+            Result.success(
+                document.id
             )
 
-            document.set(expense).await()
-
-            Result.success(document.id)
         } catch (exception: Exception) {
             Result.failure(exception)
         }
@@ -67,15 +152,27 @@ class ExpenseRepository(
     ): Result<Unit> {
         return try {
             if (expense.id.isBlank()) {
-                throw IllegalArgumentException("Expense id is missing.")
+                throw IllegalArgumentException(
+                    "Expense ID is missing."
+                )
             }
 
+            /*
+             * Firestore rules verify that the current
+             * user is the original creator.
+             */
             collection()
                 .document(expense.id)
-                .set(expense.copy(updatedAt = System.currentTimeMillis()))
+                .set(
+                    expense.copy(
+                        updatedAt =
+                            System.currentTimeMillis()
+                    )
+                )
                 .await()
 
             Result.success(Unit)
+
         } catch (exception: Exception) {
             Result.failure(exception)
         }
@@ -85,56 +182,102 @@ class ExpenseRepository(
         expenseId: String
     ): Result<Unit> {
         return try {
+            if (expenseId.isBlank()) {
+                throw IllegalArgumentException(
+                    "Expense ID is missing."
+                )
+            }
+
             collection()
                 .document(expenseId)
                 .delete()
                 .await()
 
             Result.success(Unit)
+
         } catch (exception: Exception) {
             Result.failure(exception)
         }
     }
 
-    /** One-shot fetch used for balance calculations (no live listener needed). */
     suspend fun getExpensesOnce(
         groupId: String
     ): Result<List<Expense>> {
         return try {
-            val snapshot = collection()
-                .whereEqualTo("groupId", groupId)
-                .get()
-                .await()
+            val snapshot =
+                collection()
+                    .whereEqualTo(
+                        "groupId",
+                        groupId
+                    )
+                    .get()
+                    .await()
 
-            Result.success(
-                snapshot.documents.mapNotNull { it.toObject(Expense::class.java) }
-            )
+            val expenses =
+                snapshot.documents
+                    .mapNotNull { document ->
+                        document
+                            .toObject(
+                                Expense::class.java
+                            )
+                            ?.copy(
+                                id = document.id
+                            )
+                    }
+
+            Result.success(expenses)
+
         } catch (exception: Exception) {
             Result.failure(exception)
         }
     }
 
-    /** Real-time feed of a group's expenses, most recent first. */
     fun observeExpenses(
         groupId: String
-    ): Flow<List<Expense>> = callbackFlow {
-        val listener = collection()
-            .whereEqualTo("groupId", groupId)
-            .addSnapshotListener { snapshot, error ->
-                if (error != null) {
-                    close(error)
-                    return@addSnapshotListener
-                }
+    ): Flow<List<Expense>> =
+        callbackFlow {
 
-                val expenses = snapshot
-                    ?.documents
-                    ?.mapNotNull { it.toObject(Expense::class.java) }
-                    ?.sortedByDescending { it.createdAt }
-                    ?: emptyList()
+            val listener =
+                collection()
+                    .whereEqualTo(
+                        "groupId",
+                        groupId
+                    )
+                    .addSnapshotListener {
+                            snapshot,
+                            error ->
 
-                trySend(expenses)
+                        if (error != null) {
+                            close(error)
+                            return@addSnapshotListener
+                        }
+
+                        val expenses =
+                            snapshot
+                                ?.documents
+                                ?.mapNotNull {
+                                        document ->
+
+                                    document
+                                        .toObject(
+                                            Expense::class.java
+                                        )
+                                        ?.copy(
+                                            id =
+                                                document.id
+                                        )
+                                }
+                                ?.sortedByDescending {
+                                        expense ->
+                                    expense.createdAt
+                                }
+                                ?: emptyList()
+
+                        trySend(expenses)
+                    }
+
+            awaitClose {
+                listener.remove()
             }
-
-        awaitClose { listener.remove() }
-    }
+        }
 }

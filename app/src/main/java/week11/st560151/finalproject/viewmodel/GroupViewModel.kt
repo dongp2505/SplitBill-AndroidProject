@@ -56,6 +56,12 @@ class GroupViewModel(
     val joinState: StateFlow<UiState<Group>> =
         _joinState.asStateFlow()
 
+    private val _editGroupState =
+        MutableStateFlow<UiState<String>>(UiState.Idle)
+
+    val editGroupState: StateFlow<UiState<String>> =
+        _editGroupState.asStateFlow()
+
     // groupId -> current user's net balance, for the landing list's chips.
     private val _balancesState =
         MutableStateFlow<Map<String, Double>>(emptyMap())
@@ -222,6 +228,59 @@ class GroupViewModel(
             _balancesState.value = balances
             _membersByGroupState.value = membersByGroup
         }
+    }
+
+
+    fun updateGroupName(groupId: String, newName: String) {
+        viewModelScope.launch {
+            _editGroupState.value = UiState.Loading
+            repository.updateGroupName(groupId, newName)
+                .onSuccess {
+                    _editGroupState.value = UiState.Success("Group name updated.")
+                    loadGroup(groupId)
+                }
+                .onFailure { _editGroupState.value = UiState.Error(it.message ?: "Unable to update group name.") }
+        }
+    }
+
+    fun updateGroupAvatar(groupId: String, avatarBase64: String) {
+        viewModelScope.launch {
+            _editGroupState.value = UiState.Loading
+            repository.updateGroupAvatar(groupId, avatarBase64)
+                .onSuccess {
+                    _editGroupState.value = UiState.Success("Group avatar updated.")
+                    loadGroup(groupId)
+                }
+                .onFailure { _editGroupState.value = UiState.Error(it.message ?: "Unable to update group avatar.") }
+        }
+    }
+
+    fun addGroupMember(groupId: String, email: String) {
+        viewModelScope.launch {
+            _editGroupState.value = UiState.Loading
+            repository.addMemberByEmail(groupId, email)
+                .onSuccess {
+                    _editGroupState.value = UiState.Success("Member added.")
+                    loadGroup(groupId)
+                }
+                .onFailure { _editGroupState.value = UiState.Error(it.message ?: "Unable to add member.") }
+        }
+    }
+
+    fun removeGroupMember(groupId: String, memberId: String) {
+        viewModelScope.launch {
+            _editGroupState.value = UiState.Loading
+            repository.removeMember(groupId, memberId)
+                .onSuccess {
+                    _editGroupState.value = UiState.Success("Member removed.")
+                    loadGroup(groupId)
+                }
+                .onFailure { _editGroupState.value = UiState.Error(it.message ?: "Unable to remove member.") }
+        }
+    }
+
+    fun resetEditGroupState() {
+        _editGroupState.value = UiState.Idle
     }
 
     fun resetCreateState() {
