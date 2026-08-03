@@ -1,5 +1,6 @@
 package week11.st560151.finalproject.ui.notifications
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -43,6 +44,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import week11.st560151.finalproject.data.model.AppNotification
 import week11.st560151.finalproject.ui.components.AppBottomNav
 import week11.st560151.finalproject.ui.components.BottomNavTab
+import week11.st560151.finalproject.ui.theme.CardBackground
+import week11.st560151.finalproject.ui.theme.CardBorder
+import week11.st560151.finalproject.ui.theme.BrandGreenLight
 import week11.st560151.finalproject.viewmodel.NotificationViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -190,7 +194,7 @@ private fun EmptyNotificationsContent(
                     .clip(CircleShape)
                     .background(
                         MaterialTheme.colorScheme
-                            .primaryContainer
+                            .secondaryContainer
                     ),
                 contentAlignment = Alignment.Center
             ) {
@@ -198,7 +202,7 @@ private fun EmptyNotificationsContent(
                     imageVector = Icons.Default.Groups,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme
-                        .onPrimaryContainer,
+                        .onSecondaryContainer,
                     modifier = Modifier.size(34.dp)
                 )
             }
@@ -228,9 +232,9 @@ private fun NotificationCard(
 ) {
     val containerColor =
         if (notification.read) {
-            MaterialTheme.colorScheme.surface
+            CardBackground
         } else {
-            MaterialTheme.colorScheme.surfaceVariant
+            BrandGreenLight
         }
 
     Card(
@@ -243,13 +247,9 @@ private fun NotificationCard(
         colors = CardDefaults.cardColors(
             containerColor = containerColor
         ),
+        border = BorderStroke(1.dp, CardBorder),
         elevation = CardDefaults.cardElevation(
-            defaultElevation =
-                if (notification.read) {
-                    0.dp
-                } else {
-                    1.dp
-                }
+            defaultElevation = 0.dp
         )
     ) {
         Row(
@@ -267,7 +267,7 @@ private fun NotificationCard(
                     .clip(CircleShape)
                     .background(
                         MaterialTheme.colorScheme
-                            .primaryContainer
+                            .secondaryContainer
                     ),
                 contentAlignment = Alignment.Center
             ) {
@@ -277,7 +277,7 @@ private fun NotificationCard(
                     ),
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme
-                        .onPrimaryContainer,
+                        .onSecondaryContainer,
                     modifier = Modifier.size(23.dp)
                 )
             }

@@ -1,5 +1,6 @@
 package week11.st560151.finalproject.ui.components
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -139,26 +140,50 @@ fun PrimaryButton(
     }
 }
 
-/** Full-width outlined button, used for secondary calls to action (e.g. "I already have an account"). */
+/**
+ * Full-width outlined button, used for secondary calls to action (e.g. "I
+ * already have an account"). Set [isDestructive] for actions like "Sign out"
+ * that should read as leaving/undoing rather than a neutral secondary action.
+ */
 @Composable
 fun SecondaryButton(
     text: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    enabled: Boolean = true
+    enabled: Boolean = true,
+    isDestructive: Boolean = false
 ) {
-    OutlinedButton(
-        onClick = onClick,
-        enabled = enabled,
-        shape = RoundedCornerShape(12.dp),
-        colors = ButtonDefaults.outlinedButtonColors(
-            contentColor = MaterialTheme.colorScheme.onSurface
-        ),
-        modifier = modifier
-            .fillMaxWidth()
-            .height(52.dp)
-    ) {
-        Text(text)
+    val contentColor = if (isDestructive) {
+        MaterialTheme.colorScheme.error
+    } else {
+        MaterialTheme.colorScheme.onSurface
+    }
+
+    if (isDestructive) {
+        OutlinedButton(
+            onClick = onClick,
+            enabled = enabled,
+            shape = RoundedCornerShape(12.dp),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = contentColor),
+            border = BorderStroke(1.dp, contentColor.copy(alpha = if (enabled) 1f else 0.38f)),
+            modifier = modifier
+                .fillMaxWidth()
+                .height(52.dp)
+        ) {
+            Text(text)
+        }
+    } else {
+        OutlinedButton(
+            onClick = onClick,
+            enabled = enabled,
+            shape = RoundedCornerShape(12.dp),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = contentColor),
+            modifier = modifier
+                .fillMaxWidth()
+                .height(52.dp)
+        ) {
+            Text(text)
+        }
     }
 }
 

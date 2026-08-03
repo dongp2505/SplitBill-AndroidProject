@@ -1,8 +1,13 @@
 package week11.st560151.finalproject.ui.components
 
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.util.Base64
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
@@ -12,9 +17,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import week11.st560151.finalproject.data.model.Group
 import week11.st560151.finalproject.data.model.User
 
 private val AVATAR_COLORS = listOf(
@@ -62,5 +70,42 @@ fun AvatarChip(
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.Bold
         )
+    }
+}
+
+private fun groupBase64ToBitmap(value: String): Bitmap? {
+    return try {
+        val bytes = Base64.decode(value, Base64.NO_WRAP)
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+    } catch (_: Exception) {
+        null
+    }
+}
+
+/**
+ * A group's own avatar (from [Group.avatarBase64]), falling back to the
+ * group's initial. Shared by the groups list and the group detail header/
+ * edit dialog so a change in one place is drawn identically everywhere.
+ */
+@Composable
+fun GroupAvatar(group: Group?, size: Dp) {
+    val bitmap = group?.avatarBase64?.takeIf { it.isNotBlank() }?.let(::groupBase64ToBitmap)
+    Box(
+        modifier = Modifier.size(size).clip(CircleShape).background(MaterialTheme.colorScheme.tertiary),
+        contentAlignment = Alignment.Center
+    ) {
+        if (bitmap != null) {
+            Image(
+                bitmap = bitmap.asImageBitmap(),
+                contentDescription = "Group avatar",
+                modifier = Modifier.fillMaxSize().clip(CircleShape),
+                contentScale = ContentScale.Crop
+            )
+        } else {
+            Text(
+                text = group?.name?.firstOrNull()?.uppercaseChar()?.toString() ?: "G",
+                fontWeight = FontWeight.Bold
+            )
+        }
     }
 }

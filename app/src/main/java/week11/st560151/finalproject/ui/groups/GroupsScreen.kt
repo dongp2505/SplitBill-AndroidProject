@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -41,6 +42,7 @@ import week11.st560151.finalproject.data.model.Group
 import week11.st560151.finalproject.data.model.User
 import week11.st560151.finalproject.ui.components.AppBottomNav
 import week11.st560151.finalproject.ui.components.AvatarChip
+import week11.st560151.finalproject.ui.components.GroupAvatar
 import week11.st560151.finalproject.ui.components.BottomNavTab
 import week11.st560151.finalproject.ui.state.UiState
 import week11.st560151.finalproject.ui.theme.CardBackground
@@ -201,7 +203,13 @@ private fun GroupCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(text = group.name, fontWeight = FontWeight.Bold)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    GroupAvatar(group = group, size = 36.dp)
+
+                    Spacer(modifier = Modifier.width(12.dp))
+
+                    Text(text = group.name, fontWeight = FontWeight.Bold)
+                }
 
                 if (group.type.isNotBlank()) {
                     Box(

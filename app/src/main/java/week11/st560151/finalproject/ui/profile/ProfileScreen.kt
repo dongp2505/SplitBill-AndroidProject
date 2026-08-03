@@ -256,7 +256,8 @@ fun ProfileScreen(
 
             SecondaryButton(
                 text = "Sign out",
-                onClick = onSignOutClick
+                onClick = onSignOutClick,
+                isDestructive = true
             )
         }
     }

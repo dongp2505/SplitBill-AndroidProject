@@ -48,8 +48,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -62,6 +60,7 @@ import week11.st560151.finalproject.data.model.Expense
 import week11.st560151.finalproject.data.model.Group
 import week11.st560151.finalproject.data.model.User
 import week11.st560151.finalproject.ui.components.AvatarChip
+import week11.st560151.finalproject.ui.components.GroupAvatar
 import week11.st560151.finalproject.ui.components.CircleBackButton
 import week11.st560151.finalproject.ui.components.ErrorText
 import week11.st560151.finalproject.ui.state.UiState
@@ -81,8 +80,6 @@ import android.util.Base64
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.layout.size
 import java.io.ByteArrayOutputStream
 
 private enum class GroupTab { Activity, Balances }
@@ -827,38 +824,6 @@ private fun groupUriToBase64(context: Context, uri: Uri): String? {
         Base64.encodeToString(output.toByteArray(), Base64.NO_WRAP)
     } catch (_: Exception) {
         null
-    }
-}
-
-private fun groupBase64ToBitmap(value: String): Bitmap? {
-    return try {
-        val bytes = Base64.decode(value, Base64.NO_WRAP)
-        BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-    } catch (_: Exception) {
-        null
-    }
-}
-
-@Composable
-private fun GroupAvatar(group: Group?, size: androidx.compose.ui.unit.Dp) {
-    val bitmap = group?.avatarBase64?.takeIf { it.isNotBlank() }?.let(::groupBase64ToBitmap)
-    Box(
-        modifier = Modifier.size(size).clip(CircleShape).background(MaterialTheme.colorScheme.tertiary),
-        contentAlignment = Alignment.Center
-    ) {
-        if (bitmap != null) {
-            Image(
-                bitmap = bitmap.asImageBitmap(),
-                contentDescription = "Group avatar",
-                modifier = Modifier.fillMaxSize().clip(CircleShape),
-                contentScale = ContentScale.Crop
-            )
-        } else {
-            Text(
-                text = group?.name?.firstOrNull()?.uppercaseChar()?.toString() ?: "G",
-                fontWeight = FontWeight.Bold
-            )
-        }
     }
 }
 
