@@ -29,6 +29,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -44,11 +45,13 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.UserProfileChangeRequest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import week11.st560151.finalproject.data.repository.UserRepository
+import week11.st560151.finalproject.viewmodel.NotificationViewModel
 import week11.st560151.finalproject.ui.components.AppBottomNav
 import week11.st560151.finalproject.ui.components.BottomNavTab
 import week11.st560151.finalproject.ui.components.SecondaryButton
@@ -93,10 +96,16 @@ fun ProfileScreen(
     onGroupsClick: () -> Unit,
     onNotificationsClick: () -> Unit,
     onSignOutClick: () -> Unit,
-    userRepository: UserRepository = UserRepository()
+    userRepository: UserRepository = UserRepository(),
+    notificationViewModel: NotificationViewModel = viewModel()
 ) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+
+    val notifications by notificationViewModel.notifications.collectAsState()
+    val unreadNotificationCount = notifications.count { notification ->
+        !notification.read
+    }
 
     var refreshTrigger by remember { mutableIntStateOf(0) }
     val currentUser = remember(refreshTrigger) { FirebaseAuth.getInstance().currentUser }
@@ -145,6 +154,7 @@ fun ProfileScreen(
         bottomBar = {
             AppBottomNav(
                 selected = BottomNavTab.Profile,
+                unreadNotificationCount = unreadNotificationCount,
                 onSelect = { tab ->
                     when (tab) {
                         BottomNavTab.Groups -> onGroupsClick()

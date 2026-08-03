@@ -49,6 +49,7 @@ import week11.st560151.finalproject.ui.theme.FabGreen
 import week11.st560151.finalproject.ui.theme.TagBackground
 import week11.st560151.finalproject.ui.theme.TagText
 import week11.st560151.finalproject.viewmodel.GroupViewModel
+import week11.st560151.finalproject.viewmodel.NotificationViewModel
 import java.util.Locale
 
 @Composable
@@ -57,11 +58,17 @@ fun GroupsScreen(
     onAddGroupClick: () -> Unit,
     onNotificationsClick: () -> Unit,
     onProfileClick: () -> Unit,
-    groupViewModel: GroupViewModel = viewModel()
+    groupViewModel: GroupViewModel = viewModel(),
+    notificationViewModel: NotificationViewModel = viewModel()
 ) {
     val groupsState by groupViewModel.groupsState.collectAsState()
     val balancesState by groupViewModel.balancesState.collectAsState()
     val membersByGroupState by groupViewModel.membersByGroupState.collectAsState()
+    val notifications by notificationViewModel.notifications.collectAsState()
+
+    val unreadNotificationCount = notifications.count { notification ->
+        !notification.read
+    }
 
     LaunchedEffect(Unit) {
         groupViewModel.observeGroups()
@@ -86,6 +93,7 @@ fun GroupsScreen(
         bottomBar = {
             AppBottomNav(
                 selected = BottomNavTab.Groups,
+                unreadNotificationCount = unreadNotificationCount,
                 onSelect = { tab ->
                     when (tab) {
                         BottomNavTab.Groups -> Unit

@@ -5,27 +5,37 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import week11.st560151.finalproject.ui.theme.BottomNavBackground
 import week11.st560151.finalproject.ui.theme.BottomNavBorder
 
 enum class BottomNavTab {
-    Groups, Notifications, Profile
+    Groups,
+    Notifications,
+    Profile
 }
 
-/** Bottom nav shown on the three top-level destinations (Groups, Notifications, Profile). */
 @Composable
 fun AppBottomNav(
     selected: BottomNavTab,
+    unreadNotificationCount: Int = 0,
     onSelect: (BottomNavTab) -> Unit
 ) {
     Column {
-        HorizontalDivider(thickness = 1.dp, color = BottomNavBorder)
+        HorizontalDivider(
+            thickness = 1.dp,
+            color = BottomNavBorder
+        )
 
         NavigationBar(
             containerColor = BottomNavBackground,
@@ -35,7 +45,10 @@ fun AppBottomNav(
                 selected = selected == BottomNavTab.Groups,
                 onClick = { onSelect(BottomNavTab.Groups) },
                 icon = {
-                    Icon(Icons.Filled.GridView, contentDescription = "Groups")
+                    Icon(
+                        imageVector = Icons.Default.GridView,
+                        contentDescription = "Groups"
+                    )
                 }
             )
 
@@ -43,7 +56,34 @@ fun AppBottomNav(
                 selected = selected == BottomNavTab.Notifications,
                 onClick = { onSelect(BottomNavTab.Notifications) },
                 icon = {
-                    Icon(Icons.Filled.Notifications, contentDescription = "Notifications")
+                    BadgedBox(
+                        badge = {
+                            if (unreadNotificationCount > 0) {
+                                Badge(
+                                    containerColor = MaterialTheme.colorScheme.error,
+                                    contentColor = MaterialTheme.colorScheme.onError
+                                ) {
+                                    Text(
+                                        text = if (unreadNotificationCount > 99) {
+                                            "99+"
+                                        } else {
+                                            unreadNotificationCount.toString()
+                                        },
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Notifications,
+                            contentDescription = if (unreadNotificationCount > 0) {
+                                "$unreadNotificationCount unread notifications"
+                            } else {
+                                "Notifications"
+                            }
+                        )
+                    }
                 }
             )
 
@@ -51,7 +91,10 @@ fun AppBottomNav(
                 selected = selected == BottomNavTab.Profile,
                 onClick = { onSelect(BottomNavTab.Profile) },
                 icon = {
-                    Icon(Icons.Filled.Person, contentDescription = "Profile")
+                    Icon(
+                        imageVector = Icons.Default.Person,
+                        contentDescription = "Profile"
+                    )
                 }
             )
         }

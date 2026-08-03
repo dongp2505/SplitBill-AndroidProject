@@ -14,17 +14,10 @@ class NotificationRepository(
 ) {
 
     companion object {
-        private const val TAG =
-            "NotificationRepository"
-
-        private const val COLLECTION =
-            "notifications"
+        private const val TAG = "NotificationRepository"
+        private const val COLLECTION = "notifications"
     }
 
-    /*
-     * Creates one notification document for every
-     * selected recipient.
-     */
     suspend fun createNotifications(
         recipientIds: List<String>,
         groupId: String,
@@ -34,179 +27,103 @@ class NotificationRepository(
         excludeUserId: String? = null
     ): Result<Unit> {
         return try {
-            if (groupId.isBlank()) {
-                throw IllegalArgumentException(
-                    "Group ID is missing."
-                )
+            require(groupId.isNotBlank()) {
+                "Group ID is missing."
             }
 
-            val recipients =
-                recipientIds
-                    .map { recipientId ->
-                        recipientId.trim()
-                    }
-                    .filter { recipientId ->
-                        recipientId.isNotBlank()
-                    }
-                    .filter { recipientId ->
-                        recipientId != excludeUserId
-                    }
-                    .distinct()
+            val recipients = recipientIds
+                .map { it.trim() }
+                .filter { it.isNotBlank() }
+                .filter { it != excludeUserId }
+                .distinct()
 
             if (recipients.isEmpty()) {
                 return Result.success(Unit)
             }
 
-            val batch =
-                firestore.batch()
+            val batch = firestore.batch()
 
             recipients.forEach { recipientId ->
+                val document = firestore
+                    .collection(COLLECTION)
+                    .document()
 
-                val document =
-                    firestore
-                        .collection(COLLECTION)
-                        .document()
-
-                val notification =
-                    AppNotification(
-                        id = document.id,
-                        recipientId = recipientId,
-                        groupId = groupId,
-                        type = type,
-                        title = title,
-                        message = message,
-                        isRead = false,
-                        createdAt =
-                            System.currentTimeMillis()
-                    )
-
-                batch.set(
-                    document,
-                    notification
+                val notification = AppNotification(
+                    id = document.id,
+                    recipientId = recipientId,
+                    groupId = groupId,
+                    type = type,
+                    title = title,
+                    message = message,
+                    read = false,
+                    createdAt = System.currentTimeMillis()
                 )
+
+                batch.set(document, notification)
             }
 
             batch.commit().await()
-
-            Log.d(
-                TAG,
-                "Created ${recipients.size} notifications."
-            )
-
             Result.success(Unit)
-
         } catch (exception: Exception) {
-            Log.e(
-                TAG,
-                "Unable to create notifications.",
-                exception
-            )
-
+            Log.e(TAG, "Unable to create notifications.", exception)
             Result.failure(exception)
         }
     }
 
-    /*
-     * Reads only notifications belonging to the
-     * currently signed-in Firebase UID.
-     *
-     * This query is required by the Firestore rule:
-     *
-     * resource.data.recipientId == request.auth.uid
-     */
     fun observeNotifications(
         userId: String
-    ): Flow<List<AppNotification>> =
-        callbackFlow {
-
-            if (userId.isBlank()) {
-                trySend(emptyList())
-                close()
-                return@callbackFlow
-            }
-
-            val listenerRegistration =
-                firestore
-                    .collection(COLLECTION)
-                    .whereEqualTo(
-                        "recipientId",
-                        userId
-                    )
-                    .addSnapshotListener {
-                            snapshot,
-                            error ->
-
-                        if (error != null) {
-                            Log.e(
-                                TAG,
-                                "Notification listener failed for UID: $userId",
-                                error
-                            )
-
-                            close(error)
-                            return@addSnapshotListener
-                        }
-
-                        val notificationList =
-                            snapshot
-                                ?.documents
-                                ?.mapNotNull {
-                                        document ->
-
-                                    document
-                                        .toObject(
-                                            AppNotification::class.java
-                                        )
-                                        ?.copy(
-                                            id = document.id
-                                        )
-                                }
-                                ?.sortedByDescending {
-                                        notification ->
-                                    notification.createdAt
-                                }
-                                ?: emptyList()
-
-                        trySend(notificationList)
-                    }
-
-            awaitClose {
-                listenerRegistration.remove()
-            }
+    ): Flow<List<AppNotification>> = callbackFlow {
+        if (userId.isBlank()) {
+            trySend(emptyList())
+            close()
+            return@callbackFlow
         }
 
-    /*
-     * The recipient may mark only their own
-     * notification as read.
-     */
+        val listener = firestore
+            .collection(COLLECTION)
+            .whereEqualTo("recipientId", userId)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    Log.e(TAG, "Notification listener failed.", error)
+                    close(error)
+                    return@addSnapshotListener
+                }
+
+                val notificationList = snapshot
+                    ?.documents
+                    ?.mapNotNull { document ->
+                        document
+                            .toObject(AppNotification::class.java)
+                            ?.copy(id = document.id)
+                    }
+                    ?.sortedByDescending { it.createdAt }
+                    ?: emptyList()
+
+                trySend(notificationList)
+            }
+
+        awaitClose {
+            listener.remove()
+        }
+    }
+
     suspend fun markAsRead(
         notificationId: String
     ): Result<Unit> {
         return try {
-            if (notificationId.isBlank()) {
-                throw IllegalArgumentException(
-                    "Notification ID is missing."
-                )
+            require(notificationId.isNotBlank()) {
+                "Notification ID is missing."
             }
 
             firestore
                 .collection(COLLECTION)
                 .document(notificationId)
-                .update(
-                    "isRead",
-                    true
-                )
+                .update("read", true)
                 .await()
 
             Result.success(Unit)
-
         } catch (exception: Exception) {
-            Log.e(
-                TAG,
-                "Unable to mark notification as read.",
-                exception
-            )
-
+            Log.e(TAG, "Unable to mark notification as read.", exception)
             Result.failure(exception)
         }
     }

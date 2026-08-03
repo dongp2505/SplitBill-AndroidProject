@@ -7,6 +7,6 @@ data class AppNotification(
     val type: String = "",
     val title: String = "",
     val message: String = "",
-    val isRead: Boolean = false,
+    val read: Boolean = false,
     val createdAt: Long = 0L
 )

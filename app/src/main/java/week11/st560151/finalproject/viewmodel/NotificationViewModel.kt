@@ -41,39 +41,60 @@ class NotificationViewModel(
 
     private var notificationJob: Job? = null
 
-    init {
-        observeCurrentUserNotifications()
-    }
+    /*
+     * Restart the notification listener whenever
+     * the Firebase account changes.
+     */
+    private val authStateListener =
+        FirebaseAuth.AuthStateListener {
+                firebaseAuth ->
 
-    fun observeCurrentUserNotifications() {
-        notificationJob?.cancel()
+            val userId =
+                firebaseAuth.currentUser
+                    ?.uid
+                    .orEmpty()
+
+            if (userId.isBlank()) {
+                stopObservingNotifications()
+            } else {
+                observeNotificationsForUser(
+                    userId
+                )
+            }
+        }
+
+    init {
+        auth.addAuthStateListener(
+            authStateListener
+        )
 
         val currentUserId =
             auth.currentUser
                 ?.uid
                 .orEmpty()
 
-        if (currentUserId.isBlank()) {
-            _notifications.value =
-                emptyList()
-
-            _errorMessage.value =
-                null
-
-            return
+        if (currentUserId.isNotBlank()) {
+            observeNotificationsForUser(
+                currentUserId
+            )
         }
+    }
+
+    private fun observeNotificationsForUser(
+        userId: String
+    ) {
+        notificationJob?.cancel()
+
+        _errorMessage.value = null
 
         notificationJob =
             viewModelScope.launch {
                 repository
                     .observeNotifications(
-                        currentUserId
+                        userId
                     )
                     .catch { exception ->
-                        /*
-                         * Cancellation is normal when navigating
-                         * away or signing out.
-                         */
+
                         if (
                             exception
                                     is CancellationException
@@ -81,13 +102,7 @@ class NotificationViewModel(
                             throw exception
                         }
 
-                        /*
-                         * Do not crash when Firebase Auth changes
-                         * while the listener is closing.
-                         */
-                        if (
-                            auth.currentUser == null
-                        ) {
+                        if (auth.currentUser == null) {
                             _notifications.value =
                                 emptyList()
 
@@ -102,39 +117,95 @@ class NotificationViewModel(
                     .collect {
                             notificationList ->
 
-                        _notifications.value =
-                            notificationList
+                        /*
+                         * Ignore results from a previously
+                         * signed-in account.
+                         */
+                        if (
+                            auth.currentUser?.uid ==
+                            userId
+                        ) {
+                            _notifications.value =
+                                notificationList
 
-                        _errorMessage.value =
-                            null
+                            _errorMessage.value =
+                                null
+                        }
                     }
             }
     }
 
+    private fun stopObservingNotifications() {
+        notificationJob?.cancel()
+        notificationJob = null
+
+        _notifications.value =
+            emptyList()
+
+        _errorMessage.value =
+            null
+    }
+
+    /*
+     * Permanently marks one notification as read.
+     *
+     * The UI changes immediately, but it is also
+     * saved permanently in Firestore.
+     */
     fun markAsRead(
-        notificationId: String
+        notificationId: String,
+        onSuccess: () -> Unit = {}
     ) {
-        if (notificationId.isBlank()) {
+        if (
+            notificationId.isBlank() ||
+            auth.currentUser == null
+        ) {
             return
         }
 
-        if (auth.currentUser == null) {
-            return
-        }
+        val previousNotifications =
+            _notifications.value
+
+        /*
+         * Change the UI immediately.
+         */
+        _notifications.value =
+            previousNotifications.map {
+                    notification ->
+
+                if (
+                    notification.id ==
+                    notificationId
+                ) {
+                    notification.copy(
+                        read = true
+                    )
+                } else {
+                    notification
+                }
+            }
 
         viewModelScope.launch {
             repository
                 .markAsRead(
                     notificationId
                 )
-                .onFailure {
-                        exception ->
+                .onSuccess {
+                    _errorMessage.value = null
+                    onSuccess()
+                }
+                .onFailure { exception ->
 
-                    if (auth.currentUser != null) {
-                        _errorMessage.value =
-                            exception.message
-                                ?: "Unable to update notification."
-                    }
+                    /*
+                     * Restore the unread state when
+                     * Firestore rejects the update.
+                     */
+                    _notifications.value =
+                        previousNotifications
+
+                    _errorMessage.value =
+                        exception.message
+                            ?: "Unable to mark notification as read."
                 }
         }
     }
@@ -144,6 +215,10 @@ class NotificationViewModel(
     }
 
     override fun onCleared() {
+        auth.removeAuthStateListener(
+            authStateListener
+        )
+
         notificationJob?.cancel()
         notificationJob = null
 

@@ -63,10 +63,15 @@ fun NotificationsScreen(
         .errorMessage
         .collectAsState()
 
+    val unreadNotificationCount = notifications.count { notification ->
+        !notification.read
+    }
+
     Scaffold(
         bottomBar = {
             AppBottomNav(
                 selected = BottomNavTab.Notifications,
+                unreadNotificationCount = unreadNotificationCount,
                 onSelect = { tab ->
                     when (tab) {
                         BottomNavTab.Groups -> {
@@ -144,16 +149,18 @@ fun NotificationsScreen(
                         NotificationCard(
                             notification = notification,
                             onClick = {
-                                notificationViewModel.markAsRead(
-                                    notification.id
-                                )
-
-                                if (
-                                    notification.groupId
-                                        .isNotBlank()
-                                ) {
-                                    onNotificationClick(
-                                        notification.groupId
+                                if (notification.read) {
+                                    if (notification.groupId.isNotBlank()) {
+                                        onNotificationClick(notification.groupId)
+                                    }
+                                } else {
+                                    notificationViewModel.markAsRead(
+                                        notificationId = notification.id,
+                                        onSuccess = {
+                                            if (notification.groupId.isNotBlank()) {
+                                                onNotificationClick(notification.groupId)
+                                            }
+                                        }
                                     )
                                 }
                             }
@@ -220,7 +227,7 @@ private fun NotificationCard(
     onClick: () -> Unit
 ) {
     val containerColor =
-        if (notification.isRead) {
+        if (notification.read) {
             MaterialTheme.colorScheme.surface
         } else {
             MaterialTheme.colorScheme.surfaceVariant
@@ -238,7 +245,7 @@ private fun NotificationCard(
         ),
         elevation = CardDefaults.cardElevation(
             defaultElevation =
-                if (notification.isRead) {
+                if (notification.read) {
                     0.dp
                 } else {
                     1.dp
@@ -294,7 +301,7 @@ private fun NotificationCard(
                         style = MaterialTheme.typography
                             .titleSmall,
                         fontWeight =
-                            if (notification.isRead) {
+                            if (notification.read) {
                                 FontWeight.Medium
                             } else {
                                 FontWeight.Bold
@@ -333,7 +340,7 @@ private fun NotificationCard(
                 )
             }
 
-            if (!notification.isRead) {
+            if (!notification.read) {
                 Spacer(
                     modifier = Modifier.width(10.dp)
                 )
