@@ -1,6 +1,7 @@
 package week11.st560151.finalproject.ui.groups
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -13,22 +14,33 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.ReceiptLong
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -52,6 +64,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -66,6 +81,7 @@ import week11.st560151.finalproject.ui.components.ErrorText
 import week11.st560151.finalproject.ui.state.UiState
 import week11.st560151.finalproject.ui.theme.CardBackground
 import week11.st560151.finalproject.ui.theme.CardBorder
+import week11.st560151.finalproject.ui.theme.CategorySelected
 import week11.st560151.finalproject.ui.theme.DividerGray
 import week11.st560151.finalproject.ui.theme.FabGreen
 import week11.st560151.finalproject.util.BalanceCalculator
@@ -304,8 +320,7 @@ fun GroupDetailScreen(
         ExpenseDetailsDialog(
             expense = expense,
 
-            // Only the Firebase user who originally created
-            // this expense can edit or delete it.
+            // Only the original creator may edit or delete.
             canEdit = expense.createdBy == currentUserId,
 
             isDeleting = deleteState is UiState.Loading,
@@ -401,41 +416,163 @@ private fun PositionText(
     }
 }
 
+private enum class ExpenseSortOption(val label: String) {
+    NEWEST("Newest first"),
+    OLDEST("Oldest first"),
+    AMOUNT_DESC("Amount: high to low"),
+    AMOUNT_ASC("Amount: low to high")
+}
+
 @Composable
 private fun ActivityTab(
     expensesState: UiState<List<Expense>>,
     onExpenseClick: (Expense) -> Unit
 ) {
-    when (val state = expensesState) {
+    when (expensesState) {
         UiState.Idle,
         UiState.Loading -> {
             Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator()
             }
+            return
         }
 
         is UiState.Error -> {
-            ErrorText(message = state.message)
+            ErrorText(message = expensesState.message)
+            return
         }
 
-        is UiState.Success -> {
-            if (state.data.isEmpty()) {
-                Text(
-                    text = "No expenses yet. Tap + to add one.",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            } else {
-                LazyColumn {
-                    itemsIndexed(items = state.data, key = { _, item -> item.id }) { index, expense ->
-                        if (index > 0) {
-                            HorizontalDivider(color = DividerGray)
-                        }
+        is UiState.Success -> Unit
+    }
 
-                        ExpenseRow(
-                            expense = expense,
-                            onClick = { onExpenseClick(expense) }
+    val expenses = (expensesState as UiState.Success<List<Expense>>).data
+
+    if (expenses.isEmpty()) {
+        Text(
+            text = "No expenses yet. Tap + to add one.",
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        return
+    }
+
+    var searchQuery by remember { mutableStateOf("") }
+    var selectedCategory by remember { mutableStateOf<String?>(null) }
+    var sortOption by remember { mutableStateOf(ExpenseSortOption.NEWEST) }
+    var sortMenuExpanded by remember { mutableStateOf(false) }
+
+    val categories = remember(expenses) {
+        expenses.map { it.category }.filter { it.isNotBlank() }.distinct().sorted()
+    }
+
+    val filteredExpenses = remember(expenses, searchQuery, selectedCategory, sortOption) {
+        expenses
+            .filter { expense ->
+                (selectedCategory == null || expense.category == selectedCategory) &&
+                    (searchQuery.isBlank() || expense.description.contains(searchQuery, ignoreCase = true))
+            }
+            .let { list ->
+                when (sortOption) {
+                    ExpenseSortOption.NEWEST -> list.sortedByDescending { it.createdAt }
+                    ExpenseSortOption.OLDEST -> list.sortedBy { it.createdAt }
+                    ExpenseSortOption.AMOUNT_DESC -> list.sortedByDescending { it.amount }
+                    ExpenseSortOption.AMOUNT_ASC -> list.sortedBy { it.amount }
+                }
+            }
+    }
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                placeholder = { Text("Search expenses") },
+                leadingIcon = {
+                    Icon(Icons.Default.Search, contentDescription = null)
+                },
+                singleLine = true,
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.weight(1f)
+            )
+
+            Spacer(modifier = Modifier.width(4.dp))
+
+            Box {
+                IconButton(onClick = { sortMenuExpanded = true }) {
+                    Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = "Sort expenses")
+                }
+
+                DropdownMenu(
+                    expanded = sortMenuExpanded,
+                    onDismissRequest = { sortMenuExpanded = false }
+                ) {
+                    ExpenseSortOption.entries.forEach { option ->
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    text = option.label,
+                                    fontWeight = if (option == sortOption) FontWeight.Bold else FontWeight.Normal
+                                )
+                            },
+                            onClick = {
+                                sortOption = option
+                                sortMenuExpanded = false
+                            }
                         )
                     }
+                }
+            }
+        }
+
+        if (categories.size > 1) {
+            Spacer(modifier = Modifier.height(10.dp))
+
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                item {
+                    FilterChip(
+                        selected = selectedCategory == null,
+                        onClick = { selectedCategory = null },
+                        label = { Text("All") },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = CategorySelected,
+                            selectedLabelColor = Color.White
+                        )
+                    )
+                }
+
+                items(categories) { categoryOption ->
+                    FilterChip(
+                        selected = selectedCategory == categoryOption,
+                        onClick = {
+                            selectedCategory = if (selectedCategory == categoryOption) null else categoryOption
+                        },
+                        label = { Text(categoryOption) },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = CategorySelected,
+                            selectedLabelColor = Color.White
+                        )
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        if (filteredExpenses.isEmpty()) {
+            Text(
+                text = "No expenses match your search.",
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        } else {
+            LazyColumn {
+                itemsIndexed(items = filteredExpenses, key = { _, item -> item.id }) { index, expense ->
+                    if (index > 0) {
+                        HorizontalDivider(color = DividerGray)
+                    }
+
+                    ExpenseRow(
+                        expense = expense,
+                        onClick = { onExpenseClick(expense) }
+                    )
                 }
             }
         }
@@ -621,11 +758,23 @@ private fun ExpenseRow(
                 fontWeight = FontWeight.Bold
             )
 
-            Text(
-                text = expense.category,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                style = MaterialTheme.typography.bodySmall
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = expense.category,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall
+                )
+
+                if (expense.receiptBase64.isNotBlank()) {
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Icon(
+                        imageVector = Icons.Default.ReceiptLong,
+                        contentDescription = "Has receipt",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(14.dp)
+                    )
+                }
+            }
         }
 
         Text(text = formatMoney(expense.amount), fontWeight = FontWeight.Bold)
@@ -641,12 +790,26 @@ private fun ExpenseDetailsDialog(
     onSave: (Expense) -> Unit,
     onDelete: () -> Unit
 ) {
+    val context = LocalContext.current
+
     var description by remember(expense.id) {
         mutableStateOf(expense.description)
     }
 
     var amountText by remember(expense.id) {
         mutableStateOf(expense.amount.toString())
+    }
+
+    var receiptBase64 by remember(expense.id) {
+        mutableStateOf(expense.receiptBase64)
+    }
+
+    val receiptPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri: Uri? ->
+        uri?.let {
+            receiptUriToBase64(context, it)?.let { encoded -> receiptBase64 = encoded }
+        }
     }
 
     AlertDialog(
@@ -663,7 +826,7 @@ private fun ExpenseDetailsDialog(
         },
 
         text = {
-            Column {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                 OutlinedTextField(
                     value = description,
                     onValueChange = { newValue ->
@@ -698,6 +861,65 @@ private fun ExpenseDetailsDialog(
                     modifier = Modifier.fillMaxWidth()
                 )
 
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Text(
+                    text = "Receipt",
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                val receiptBitmap = remember(receiptBase64) {
+                    receiptBase64.takeIf { it.isNotBlank() }?.let(::receiptBase64ToBitmap)
+                }
+
+                if (receiptBitmap != null) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Image(
+                            bitmap = receiptBitmap.asImageBitmap(),
+                            contentDescription = "Receipt photo",
+                            modifier = Modifier
+                                .size(72.dp)
+                                .clip(RoundedCornerShape(10.dp)),
+                            contentScale = ContentScale.Crop
+                        )
+
+                        if (canEdit) {
+                            Spacer(modifier = Modifier.width(12.dp))
+
+                            Column {
+                                TextButton(onClick = {
+                                    receiptPickerLauncher.launch(
+                                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                    )
+                                }) {
+                                    Text("Replace")
+                                }
+
+                                TextButton(onClick = { receiptBase64 = "" }) {
+                                    Text("Remove", color = MaterialTheme.colorScheme.error)
+                                }
+                            }
+                        }
+                    }
+                } else if (canEdit) {
+                    TextButton(onClick = {
+                        receiptPickerLauncher.launch(
+                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                        )
+                    }) {
+                        Text("Add receipt photo")
+                    }
+                } else {
+                    Text(
+                        text = "No receipt attached.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+
                 if (!canEdit) {
                     Spacer(
                         modifier = Modifier.height(8.dp)
@@ -724,8 +946,7 @@ private fun ExpenseDetailsDialog(
                             newAmount != null &&
                             newAmount > 0.0
                         ) {
-                            // Equal-split shares scale with the new amount.
-                            // Custom splits remain unchanged.
+                            // Equal splits rescale with the new amount; custom splits don't.
                             val isEvenlySplit =
                                 expense.shares.values
                                     .toSet()
@@ -753,7 +974,8 @@ private fun ExpenseDetailsDialog(
                                     description =
                                         description.trim(),
                                     amount = newAmount,
-                                    shares = updatedShares
+                                    shares = updatedShares,
+                                    receiptBase64 = receiptBase64
                                 )
                             )
                         }
@@ -822,6 +1044,42 @@ private fun groupUriToBase64(context: Context, uri: Uri): String? {
         val output = ByteArrayOutputStream()
         resized.compress(Bitmap.CompressFormat.JPEG, GROUP_AVATAR_QUALITY, output)
         Base64.encodeToString(output.toByteArray(), Base64.NO_WRAP)
+    } catch (_: Exception) {
+        null
+    }
+}
+
+private const val RECEIPT_MAX_DIMENSION = 800
+private const val RECEIPT_JPEG_QUALITY = 55
+
+private fun receiptUriToBase64(context: Context, uri: Uri): String? {
+    return try {
+        val input = context.contentResolver.openInputStream(uri) ?: return null
+        val original = BitmapFactory.decodeStream(input) ?: return null
+        input.close()
+        val scale = minOf(
+            RECEIPT_MAX_DIMENSION.toFloat() / original.width,
+            RECEIPT_MAX_DIMENSION.toFloat() / original.height,
+            1f
+        )
+        val resized = Bitmap.createScaledBitmap(
+            original,
+            (original.width * scale).toInt().coerceAtLeast(1),
+            (original.height * scale).toInt().coerceAtLeast(1),
+            true
+        )
+        val output = ByteArrayOutputStream()
+        resized.compress(Bitmap.CompressFormat.JPEG, RECEIPT_JPEG_QUALITY, output)
+        Base64.encodeToString(output.toByteArray(), Base64.NO_WRAP)
+    } catch (_: Exception) {
+        null
+    }
+}
+
+private fun receiptBase64ToBitmap(value: String): Bitmap? {
+    return try {
+        val bytes = Base64.decode(value, Base64.NO_WRAP)
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
     } catch (_: Exception) {
         null
     }

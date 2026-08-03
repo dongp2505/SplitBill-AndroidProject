@@ -127,4 +127,30 @@ class NotificationRepository(
             Result.failure(exception)
         }
     }
+
+    suspend fun markAllAsRead(
+        notificationIds: List<String>
+    ): Result<Unit> {
+        return try {
+            if (notificationIds.isEmpty()) {
+                return Result.success(Unit)
+            }
+
+            val batch = firestore.batch()
+
+            notificationIds.forEach { notificationId ->
+                batch.update(
+                    firestore.collection(COLLECTION).document(notificationId),
+                    "read",
+                    true
+                )
+            }
+
+            batch.commit().await()
+            Result.success(Unit)
+        } catch (exception: Exception) {
+            Log.e(TAG, "Unable to mark notifications as read.", exception)
+            Result.failure(exception)
+        }
+    }
 }

@@ -41,10 +41,7 @@ class NotificationViewModel(
 
     private var notificationJob: Job? = null
 
-    /*
-     * Restart the notification listener whenever
-     * the Firebase account changes.
-     */
+    // Re-subscribes notifications for whichever account is signed in.
     private val authStateListener =
         FirebaseAuth.AuthStateListener {
                 firebaseAuth ->
@@ -117,10 +114,8 @@ class NotificationViewModel(
                     .collect {
                             notificationList ->
 
-                        /*
-                         * Ignore results from a previously
-                         * signed-in account.
-                         */
+                        // Guards against a stale emission from an
+                        // account that's since signed out/switched.
                         if (
                             auth.currentUser?.uid ==
                             userId
@@ -146,12 +141,7 @@ class NotificationViewModel(
             null
     }
 
-    /*
-     * Permanently marks one notification as read.
-     *
-     * The UI changes immediately, but it is also
-     * saved permanently in Firestore.
-     */
+    // Optimistic: UI updates immediately, then persists to Firestore.
     fun markAsRead(
         notificationId: String,
         onSuccess: () -> Unit = {}
@@ -166,9 +156,6 @@ class NotificationViewModel(
         val previousNotifications =
             _notifications.value
 
-        /*
-         * Change the UI immediately.
-         */
         _notifications.value =
             previousNotifications.map {
                     notification ->
@@ -195,17 +182,48 @@ class NotificationViewModel(
                     onSuccess()
                 }
                 .onFailure { exception ->
-
-                    /*
-                     * Restore the unread state when
-                     * Firestore rejects the update.
-                     */
                     _notifications.value =
                         previousNotifications
 
                     _errorMessage.value =
                         exception.message
                             ?: "Unable to mark notification as read."
+                }
+        }
+    }
+
+    fun markAllAsRead() {
+        if (auth.currentUser == null) {
+            return
+        }
+
+        val previousNotifications = _notifications.value
+
+        val unreadIds = previousNotifications
+            .filter { notification -> !notification.read }
+            .map { notification -> notification.id }
+
+        if (unreadIds.isEmpty()) {
+            return
+        }
+
+        _notifications.value =
+            previousNotifications.map { notification ->
+                notification.copy(read = true)
+            }
+
+        viewModelScope.launch {
+            repository
+                .markAllAsRead(unreadIds)
+                .onSuccess {
+                    _errorMessage.value = null
+                }
+                .onFailure { exception ->
+                    _notifications.value = previousNotifications
+
+                    _errorMessage.value =
+                        exception.message
+                            ?: "Unable to mark notifications as read."
                 }
         }
     }

@@ -42,9 +42,7 @@ fun AppNavGraph(
             Screen.Start.route
         }
 
-    /*
-     * Switches between the three bottom-navigation tabs.
-     */
+    // Preserves each tab's own back-stack/scroll state across switches.
     fun switchTab(
         route: String
     ) {
@@ -63,9 +61,6 @@ fun AppNavGraph(
         startDestination = startDestination
     ) {
 
-        /*
-         * START SCREEN
-         */
         composable(
             route = Screen.Start.route
         ) {
@@ -84,9 +79,6 @@ fun AppNavGraph(
             )
         }
 
-        /*
-         * LOGIN SCREEN
-         */
         composable(
             route = Screen.Login.route
         ) {
@@ -116,9 +108,6 @@ fun AppNavGraph(
             )
         }
 
-        /*
-         * REGISTER SCREEN
-         */
         composable(
             route = Screen.Register.route
         ) {
@@ -141,9 +130,6 @@ fun AppNavGraph(
             )
         }
 
-        /*
-         * FORGOT PASSWORD SCREEN
-         */
         composable(
             route = Screen.ForgotPassword.route
         ) {
@@ -157,9 +143,6 @@ fun AppNavGraph(
             )
         }
 
-        /*
-         * GROUPS SCREEN
-         */
         composable(
             route = Screen.Groups.route
         ) {
@@ -192,9 +175,6 @@ fun AppNavGraph(
             )
         }
 
-        /*
-         * NOTIFICATIONS SCREEN
-         */
         composable(
             route = Screen.Notifications.route
         ) {
@@ -211,10 +191,6 @@ fun AppNavGraph(
                     )
                 },
 
-                /*
-                 * When a user selects a notification,
-                 * open the group connected to it.
-                 */
                 onNotificationClick = { groupId ->
                     navController.navigate(
                         Screen.GroupDetail.createRoute(
@@ -225,9 +201,6 @@ fun AppNavGraph(
             )
         }
 
-        /*
-         * PROFILE SCREEN
-         */
         composable(
             route = Screen.Profile.route
         ) {
@@ -265,9 +238,6 @@ fun AppNavGraph(
             )
         }
 
-        /*
-         * ADD GROUP SCREEN
-         */
         composable(
             route = Screen.AddGroup.route
         ) {
@@ -290,9 +260,6 @@ fun AppNavGraph(
             )
         }
 
-        /*
-         * CREATE GROUP SCREEN
-         */
         composable(
             route = Screen.CreateGroup.route
         ) {
@@ -311,9 +278,6 @@ fun AppNavGraph(
             )
         }
 
-        /*
-         * JOIN GROUP SCREEN
-         */
         composable(
             route = Screen.JoinGroup.route
         ) {
@@ -338,9 +302,6 @@ fun AppNavGraph(
             )
         }
 
-        /*
-         * GROUP READY SCREEN
-         */
         composable(
             route = Screen.GroupReady.route,
             arguments = listOf(
@@ -374,9 +335,6 @@ fun AppNavGraph(
             )
         }
 
-        /*
-         * GROUP DETAIL SCREEN
-         */
         composable(
             route = Screen.GroupDetail.route,
             arguments = listOf(
@@ -424,9 +382,6 @@ fun AppNavGraph(
             )
         }
 
-        /*
-         * ADD EXPENSE SCREEN
-         */
         composable(
             route = Screen.AddExpense.route,
             arguments = listOf(
@@ -454,9 +409,6 @@ fun AppNavGraph(
             )
         }
 
-        /*
-         * SETTLEMENT SCREEN
-         */
         composable(
             route = Screen.Settlement.route,
             arguments = listOf(
@@ -507,10 +459,6 @@ fun AppNavGraph(
                     ?.toDoubleOrNull()
                     ?: 0.0
 
-                /*
-                 * Fill the settlement form using the information
-                 * passed from GroupDetailScreen.
-                 */
                 LaunchedEffect(
                     groupId,
                     payerEmail,
@@ -552,9 +500,7 @@ fun AppNavGraph(
     }
 }
 
-/*
- * Finds the FragmentActivity needed for biometric authentication.
- */
+// Biometric prompts need a FragmentActivity, not just any Context.
 private tailrec fun Context.findFragmentActivity():
         FragmentActivity? {
 

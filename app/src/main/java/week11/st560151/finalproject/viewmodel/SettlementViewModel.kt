@@ -54,9 +54,6 @@ class SettlementViewModel(
         loadCreatorName()
     }
 
-    /*
-     * Load the signed-in user's display name.
-     */
     private fun loadCreatorName() {
         val currentUser = auth.currentUser
 
@@ -123,9 +120,6 @@ class SettlementViewModel(
         }
     }
 
-    /*
-     * Called when opening Settle Up from a group.
-     */
     fun prefill(
         groupId: String,
         payerEmail: String,
@@ -161,9 +155,6 @@ class SettlementViewModel(
         loadParticipants()
     }
 
-    /*
-     * Find the payer and receiver user documents.
-     */
     private fun loadParticipants() {
         val state = _uiState.value
 
@@ -293,10 +284,6 @@ class SettlementViewModel(
             )
     }
 
-    /*
-     * Verify all settlement information before
-     * showing biometric authentication.
-     */
     fun validate(): Boolean {
         val state = _uiState.value
 
@@ -402,9 +389,7 @@ class SettlementViewModel(
         }
     }
 
-    /*
-     * Called only after biometric authentication succeeds.
-     */
+    // Caller must have already passed biometric auth.
     fun completeSettlement() {
         val currentState =
             _uiState.value

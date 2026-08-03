@@ -26,15 +26,8 @@ class GroupRepository(
         private const val TAG = "GroupRepository"
     }
 
-    /*
-     * Creates a new group.
-     *
-     * Registered users whose emails are entered are immediately
-     * added to the group's memberIds.
-     *
-     * If notification creation fails, the group still remains
-     * successfully created.
-     */
+    // Unregistered invite emails are silently skipped; notification
+    // failure doesn't fail group creation.
     suspend fun createGroup(
         name: String,
         type: String,
@@ -55,12 +48,7 @@ class GroupRepository(
                 )
             }
 
-            /*
-             * Convert invited emails into Firebase user UIDs.
-             *
-             * Only users who already have a SplitBill account
-             * will be immediately added.
-             */
+            // Only emails with a registered account resolve to a uid.
             val invitedUids = inviteEmails
                 .map { email ->
                     email.trim().lowercase()
@@ -103,23 +91,14 @@ class GroupRepository(
                 "Invited UIDs: $invitedUids"
             )
 
-            /*
-             * The group owner must always be included.
-             */
             val memberIds = (
                     listOf(ownerId) + invitedUids
                     ).distinct()
 
-            /*
-             * Create a new group document.
-             */
             val groupDocument = firestore
                 .collection("groups")
                 .document()
 
-            /*
-             * Build the group object.
-             */
             val group = Group(
                 id = groupDocument.id,
                 name = name.trim(),
@@ -130,9 +109,6 @@ class GroupRepository(
                 createdAt = System.currentTimeMillis()
             )
 
-            /*
-             * Save the group first.
-             */
             groupDocument
                 .set(group)
                 .await()
@@ -142,14 +118,7 @@ class GroupRepository(
                 "Group created successfully: ${groupDocument.id}"
             )
 
-            /*
-             * Send notifications to invited users.
-             *
-             * Do not use getOrThrow() here.
-             *
-             * If notification creation fails, the group should
-             * still be reported as successfully created.
-             */
+            // No getOrThrow(): notification failure shouldn't fail creation.
             val notificationResult =
                 notificationRepository.createNotifications(
                     recipientIds = invitedUids,
@@ -175,10 +144,6 @@ class GroupRepository(
                     )
                 }
 
-            /*
-             * The group was successfully created even if
-             * notification creation failed.
-             */
             Result.success(groupDocument.id)
 
         } catch (exception: Exception) {
@@ -193,9 +158,6 @@ class GroupRepository(
         }
     }
 
-    /*
-     * Loads one group by its Firestore document ID.
-     */
     suspend fun getGroup(
         groupId: String
     ): Result<Group> {
@@ -245,13 +207,7 @@ class GroupRepository(
         }
     }
 
-    /*
-     * Adds a user to a group using the invite code.
-     *
-     * Existing group members receive a notification.
-     *
-     * Notification failure will not undo the successful join.
-     */
+    // Notification failure doesn't undo the join.
     suspend fun joinGroupByInviteCode(
         inviteCode: String,
         userId: String
@@ -274,9 +230,6 @@ class GroupRepository(
                 )
             }
 
-            /*
-             * Find the group using its invite code.
-             */
             val snapshot = firestore
                 .collection("groups")
                 .whereEqualTo(
@@ -306,17 +259,11 @@ class GroupRepository(
                 }
             )
 
-            /*
-             * If already a member, return without duplicating
-             * the user or creating another notification.
-             */
+            // Idempotent: already-members aren't re-added or re-notified.
             if (userId in resolvedGroup.memberIds) {
                 return Result.success(resolvedGroup)
             }
 
-            /*
-             * Add the current user UID to memberIds.
-             */
             document.reference
                 .update(
                     "memberIds",
@@ -329,11 +276,6 @@ class GroupRepository(
                 "User $userId joined group ${resolvedGroup.id}"
             )
 
-            /*
-             * Notify the members who were already in the group.
-             *
-             * The joining user does not receive this notification.
-             */
             val notificationResult =
                 notificationRepository.createNotifications(
                     recipientIds = resolvedGroup.memberIds,
@@ -359,9 +301,6 @@ class GroupRepository(
                     )
                 }
 
-            /*
-             * Return the updated group locally.
-             */
             val updatedGroup = resolvedGroup.copy(
                 memberIds = (
                         resolvedGroup.memberIds + userId
@@ -412,9 +351,6 @@ class GroupRepository(
                 "Enter a member email."
             }
 
-            /*
-             * Find the registered user by email.
-             */
             val userResult =
                 userRepository.findUserByEmail(
                     normalizedEmail
@@ -429,9 +365,6 @@ class GroupRepository(
                 "The user UID is missing."
             }
 
-            /*
-             * Load the current group.
-             */
             val group =
                 getGroup(groupId).getOrElse {
                     throw it
@@ -443,13 +376,8 @@ class GroupRepository(
                 "This user is already a member."
             }
 
-            /*
-             * Add the member first.
-             *
-             * The await() is required because Firestore
-             * notification rules verify that the recipient
-             * is already inside memberIds.
-             */
+            // await() first: notification rules require the recipient
+            // already be in memberIds.
             firestore
                 .collection("groups")
                 .document(groupId)
@@ -466,13 +394,7 @@ class GroupRepository(
                 "Member ${user.uid} added to group $groupId"
             )
 
-            /*
-             * Create the in-app notification only after
-             * the member update has completed.
-             *
-             * A notification failure does not undo the
-             * successful member addition.
-             */
+            // Notification failure doesn't undo the add.
             val notificationResult =
                 notificationRepository
                     .createNotifications(
@@ -524,9 +446,6 @@ class GroupRepository(
             .update("memberIds", FieldValue.arrayRemove(memberId)).await()
     }
 
-    /*
-     * Observes every group containing the current user's UID.
-     */
     fun observeGroups(
         userId: String
     ): Flow<List<Group>> = callbackFlow {
@@ -580,11 +499,7 @@ class GroupRepository(
         }
     }
 
-    /*
-     * Generates an invite code such as:
-     *
-     * ABCD-1234
-     */
+    // e.g. "ABCD-1234"
     private fun generateInviteCode(): String {
 
         val rawCode = UUID

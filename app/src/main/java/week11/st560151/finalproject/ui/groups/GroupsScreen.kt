@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -31,6 +30,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -40,6 +42,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.google.firebase.auth.FirebaseAuth
 import week11.st560151.finalproject.data.model.Group
 import week11.st560151.finalproject.data.model.User
+import week11.st560151.finalproject.data.repository.UserRepository
 import week11.st560151.finalproject.ui.components.AppBottomNav
 import week11.st560151.finalproject.ui.components.AvatarChip
 import week11.st560151.finalproject.ui.components.GroupAvatar
@@ -61,7 +64,8 @@ fun GroupsScreen(
     onNotificationsClick: () -> Unit,
     onProfileClick: () -> Unit,
     groupViewModel: GroupViewModel = viewModel(),
-    notificationViewModel: NotificationViewModel = viewModel()
+    notificationViewModel: NotificationViewModel = viewModel(),
+    userRepository: UserRepository = UserRepository()
 ) {
     val groupsState by groupViewModel.groupsState.collectAsState()
     val balancesState by groupViewModel.balancesState.collectAsState()
@@ -77,9 +81,20 @@ fun GroupsScreen(
     }
 
     val currentUser = FirebaseAuth.getInstance().currentUser
-    val initial = (currentUser?.displayName?.firstOrNull()
-        ?: currentUser?.email?.firstOrNull()
-        ?: '?').uppercaseChar()
+
+    // Refetched on every visit so a ProfileScreen photo change shows up here.
+    var currentUserProfile by remember { mutableStateOf<User?>(null) }
+
+    LaunchedEffect(currentUser?.uid) {
+        val uid = currentUser?.uid ?: return@LaunchedEffect
+        userRepository.getUser(uid).onSuccess { currentUserProfile = it }
+    }
+
+    val headerUser = currentUserProfile ?: User(
+        uid = currentUser?.uid.orEmpty(),
+        displayName = currentUser?.displayName.orEmpty(),
+        email = currentUser?.email.orEmpty()
+    )
 
     Scaffold(
         floatingActionButton = {
@@ -125,15 +140,7 @@ fun GroupsScreen(
                     fontWeight = FontWeight.Bold
                 )
 
-                Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.tertiary),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(text = initial.toString(), fontWeight = FontWeight.Bold)
-                }
+                AvatarChip(user = headerUser, size = 40.dp)
             }
 
             Spacer(modifier = Modifier.height(20.dp))

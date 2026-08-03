@@ -1,5 +1,14 @@
 package week11.st560151.finalproject.ui.expenses
 
+import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.net.Uri
+import android.util.Base64
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -9,10 +18,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.FilterChip
@@ -24,6 +35,7 @@ import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -33,7 +45,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -46,11 +62,47 @@ import week11.st560151.finalproject.data.model.User
 import week11.st560151.finalproject.ui.components.CircleBackButton
 import week11.st560151.finalproject.ui.components.ErrorText
 import week11.st560151.finalproject.ui.components.PrimaryButton
+import week11.st560151.finalproject.ui.components.SecondaryButton
 import week11.st560151.finalproject.ui.state.UiState
 import week11.st560151.finalproject.ui.theme.CategorySelected
 import week11.st560151.finalproject.ui.theme.ParticipantSelected
 import week11.st560151.finalproject.viewmodel.ExpenseViewModel
 import week11.st560151.finalproject.viewmodel.GroupViewModel
+import java.io.ByteArrayOutputStream
+
+private const val RECEIPT_MAX_DIMENSION = 800
+private const val RECEIPT_JPEG_QUALITY = 55
+
+private fun receiptUriToCompressedBase64(context: Context, uri: Uri): String? {
+    val inputStream = context.contentResolver.openInputStream(uri) ?: return null
+    val original = BitmapFactory.decodeStream(inputStream) ?: return null
+    inputStream.close()
+
+    val scale = minOf(
+        RECEIPT_MAX_DIMENSION.toFloat() / original.width,
+        RECEIPT_MAX_DIMENSION.toFloat() / original.height,
+        1f
+    )
+    val resized = Bitmap.createScaledBitmap(
+        original,
+        (original.width * scale).toInt().coerceAtLeast(1),
+        (original.height * scale).toInt().coerceAtLeast(1),
+        true
+    )
+
+    val outputStream = ByteArrayOutputStream()
+    resized.compress(Bitmap.CompressFormat.JPEG, RECEIPT_JPEG_QUALITY, outputStream)
+    return Base64.encodeToString(outputStream.toByteArray(), Base64.NO_WRAP)
+}
+
+private fun receiptBase64ToBitmap(base64: String): Bitmap? {
+    return try {
+        val bytes = Base64.decode(base64, Base64.NO_WRAP)
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+    } catch (e: Exception) {
+        null
+    }
+}
 
 private val CATEGORIES = listOf(
     "Food", "Rent", "Utilities", "Transport", "Fun", "Other"
@@ -66,6 +118,7 @@ fun AddExpenseScreen(
     groupViewModel: GroupViewModel = viewModel()
 ) {
     val currentUserId = FirebaseAuth.getInstance().currentUser?.uid
+    val context = LocalContext.current
 
     val groupState by groupViewModel.groupState.collectAsState()
     val membersState by expenseViewModel.membersState.collectAsState()
@@ -78,6 +131,17 @@ fun AddExpenseScreen(
     var isEqualSplit by remember { mutableStateOf(true) }
     var selectedParticipantIds by remember { mutableStateOf<Set<String>>(emptySet()) }
     var customAmounts by remember { mutableStateOf(mapOf<String, String>()) }
+    var receiptBase64 by remember { mutableStateOf<String?>(null) }
+
+    val receiptPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri: Uri? ->
+        uri?.let {
+            receiptUriToCompressedBase64(context, it)?.let { encoded ->
+                receiptBase64 = encoded
+            }
+        }
+    }
 
     LaunchedEffect(groupId) {
         groupViewModel.loadGroup(groupId)
@@ -130,8 +194,7 @@ fun AddExpenseScreen(
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // Borderless, large-type amount entry — sits apart from the
-            // bordered fields below it, matching the wireframe.
+            // Borderless, large-type amount entry, set apart from the fields below.
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = "$",
@@ -320,6 +383,43 @@ fun AddExpenseScreen(
                 )
             }
 
+            Spacer(modifier = Modifier.height(20.dp))
+
+            Text("Receipt (optional)", fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.height(8.dp))
+
+            val receiptBitmap = remember(receiptBase64) {
+                receiptBase64?.let(::receiptBase64ToBitmap)
+            }
+
+            if (receiptBitmap == null) {
+                SecondaryButton(
+                    text = "Add receipt photo",
+                    onClick = {
+                        receiptPickerLauncher.launch(
+                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                        )
+                    }
+                )
+            } else {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Image(
+                        bitmap = receiptBitmap.asImageBitmap(),
+                        contentDescription = "Receipt photo",
+                        modifier = Modifier
+                            .size(72.dp)
+                            .clip(RoundedCornerShape(10.dp)),
+                        contentScale = ContentScale.Crop
+                    )
+
+                    Spacer(modifier = Modifier.width(12.dp))
+
+                    TextButton(onClick = { receiptBase64 = null }) {
+                        Text("Remove", color = MaterialTheme.colorScheme.error)
+                    }
+                }
+            }
+
             if (saveState is UiState.Error) {
                 ErrorText(message = (saveState as UiState.Error).message)
             }
@@ -347,7 +447,8 @@ fun AddExpenseScreen(
                     category = category,
                     paidBy = paidBy,
                     participantIds = selectedParticipantIds.toList(),
-                    shares = shares
+                    shares = shares,
+                    receiptBase64 = receiptBase64.orEmpty()
                 )
             }
         )

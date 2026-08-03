@@ -9,6 +9,7 @@ data class Expense(
     val paidBy: String = "",
     val participantIds: List<String> = emptyList(),
     val shares: Map<String, Double> = emptyMap(),
+    val receiptBase64: String = "",
     val createdBy: String = "",
     val createdAt: Long = 0L,
     val updatedAt: Long = 0L

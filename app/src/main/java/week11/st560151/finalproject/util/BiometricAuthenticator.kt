@@ -30,10 +30,6 @@ class BiometricAuthenticator(
         val biometricManager =
             BiometricManager.from(activity)
 
-        /*
-         * Allow strong biometric authentication,
-         * or the device PIN/pattern/password.
-         */
         val allowedAuthenticators =
             BiometricManager.Authenticators.BIOMETRIC_STRONG or
                     BiometricManager.Authenticators.DEVICE_CREDENTIAL
@@ -113,11 +109,7 @@ class BiometricAuthenticator(
                             errString
                         )
 
-                        /*
-                         * These errors happen when the user
-                         * presses Cancel or the system Back button.
-                         * They are not Firestore permission errors.
-                         */
+                        // User canceled — not a Firestore permission error.
                         when (errorCode) {
                             BiometricPrompt.ERROR_USER_CANCELED,
                             BiometricPrompt.ERROR_NEGATIVE_BUTTON,

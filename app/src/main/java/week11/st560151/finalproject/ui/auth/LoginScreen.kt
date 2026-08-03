@@ -125,8 +125,6 @@ fun LoginScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Illustration sits after the form fields and before the Sign in
-            // button, matching the SignIn wireframe.
             Image(
                 painter = painterResource(id = R.drawable.illustration_team),
                 contentDescription = "Team helping each other reach shared goals",

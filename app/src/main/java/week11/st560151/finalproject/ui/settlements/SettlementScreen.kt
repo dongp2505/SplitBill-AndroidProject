@@ -87,9 +87,6 @@ fun SettlementScreen(
         SnackbarHostState()
     }
 
-    /*
-     * Show ViewModel errors in a Snackbar.
-     */
     LaunchedEffect(state.errorMessage) {
         state.errorMessage?.let { message ->
             snackbarHostState.showSnackbar(message)
@@ -97,10 +94,6 @@ fun SettlementScreen(
         }
     }
 
-    /*
-     * Move to the confirmation screen after Firestore
-     * successfully saves the settlement.
-     */
     LaunchedEffect(state.isCompleted) {
         if (state.isCompleted) {
             step = SettlementStep.Confirmed
@@ -109,13 +102,7 @@ fun SettlementScreen(
 
     val payerName = displayName(state.payerUser)
 
-    /*
-     * Android system Back button handling.
-     *
-     * When the user is on the biometric screen,
-     * pressing the phone's Back button returns to
-     * the settlement information screen.
-     */
+    // Disabled mid-save so an in-flight save can't be backed out of.
     BackHandler(
         enabled = step == SettlementStep.Biometric &&
                 !state.isSaving
@@ -141,10 +128,6 @@ fun SettlementScreen(
                         payerName = payerName,
                         onBackClick = onBackClick,
                         onRequestSettlement = {
-                            /*
-                             * Make sure all information is valid
-                             * before opening biometric verification.
-                             */
                             if (settlementViewModel.validate()) {
                                 step = SettlementStep.Biometric
                             }
@@ -158,27 +141,17 @@ fun SettlementScreen(
                         amount = state.amount,
                         isSaving = state.isSaving,
 
-                        /*
-                         * Visible back-arrow button.
-                         */
                         onBackClick = {
                             if (!state.isSaving) {
                                 step = SettlementStep.Info
                             }
                         },
 
-                        /*
-                         * Open the Android biometric prompt.
-                         */
                         onScanClick = {
                             biometricAuthenticator.authenticate { result ->
 
                                 when (result) {
                                     BiometricAuthenticator.Result.Success -> {
-                                        /*
-                                         * Biometric succeeded.
-                                         * Now save the settlement to Firestore.
-                                         */
                                         settlementViewModel.completeSettlement()
                                     }
 
@@ -240,9 +213,6 @@ private fun InfoStep(
             )
             .padding(24.dp)
     ) {
-        /*
-         * Return to the previous app screen.
-         */
         CircleBackButton(
             onClick = onBackClick
         )
@@ -372,10 +342,6 @@ private fun BiometricStep(
             )
             .padding(24.dp)
     ) {
-        /*
-         * This back button lets the user cancel biometric
-         * and return to the previous settlement screen.
-         */
         CircleBackButton(
             onClick = onBackClick
         )

@@ -47,6 +47,7 @@ import week11.st560151.finalproject.ui.components.BottomNavTab
 import week11.st560151.finalproject.ui.theme.CardBackground
 import week11.st560151.finalproject.ui.theme.CardBorder
 import week11.st560151.finalproject.ui.theme.BrandGreenLight
+import week11.st560151.finalproject.ui.theme.LinkGreen
 import week11.st560151.finalproject.viewmodel.NotificationViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -103,17 +104,36 @@ fun NotificationsScreen(
                 )
                 .padding(paddingValues)
         ) {
-            Text(
-                text = "Notifications",
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(
-                    start = 20.dp,
-                    end = 20.dp,
-                    top = 22.dp,
-                    bottom = 14.dp
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(
+                        start = 20.dp,
+                        end = 20.dp,
+                        top = 22.dp,
+                        bottom = 14.dp
+                    ),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Notifications",
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold
                 )
-            )
+
+                if (unreadNotificationCount > 0) {
+                    Text(
+                        text = "Read all",
+                        color = LinkGreen,
+                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.clickable {
+                            notificationViewModel.markAllAsRead()
+                        }
+                    )
+                }
+            }
 
             if (!errorMessage.isNullOrBlank()) {
                 Text(

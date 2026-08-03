@@ -27,7 +27,8 @@ class ExpenseRepository(
         paidBy: String,
         participantIds: List<String>,
         shares: Map<String, Double>,
-        createdBy: String
+        createdBy: String,
+        receiptBase64: String = ""
     ): Result<String> {
         return try {
             if (description.isBlank()) {
@@ -75,6 +76,7 @@ class ExpenseRepository(
                     participantIds =
                         participantIds,
                     shares = shares,
+                    receiptBase64 = receiptBase64,
                     createdBy = createdBy,
                     createdAt =
                         System.currentTimeMillis(),
@@ -82,17 +84,10 @@ class ExpenseRepository(
                         System.currentTimeMillis()
                 )
 
-            /*
-             * Save the expense first.
-             */
             document
                 .set(expense)
                 .await()
 
-            /*
-             * Load the group so we know which users
-             * should receive an in-app notification.
-             */
             val groupDocument =
                 firestore
                     .collection("groups")
@@ -120,11 +115,6 @@ class ExpenseRepository(
                     amount
                 )
 
-            /*
-             * Create one Firestore notification for
-             * every group member except the person
-             * who added the expense.
-             */
             notificationRepository
                 .createNotifications(
                     recipientIds = memberIds,
@@ -157,10 +147,7 @@ class ExpenseRepository(
                 )
             }
 
-            /*
-             * Firestore rules verify that the current
-             * user is the original creator.
-             */
+            // Ownership is enforced server-side by the Firestore rule.
             collection()
                 .document(expense.id)
                 .set(

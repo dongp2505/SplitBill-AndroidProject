@@ -117,7 +117,8 @@ class ExpenseViewModel(
         category: String,
         paidBy: String,
         participantIds: List<String>,
-        shares: Map<String, Double>
+        shares: Map<String, Double>,
+        receiptBase64: String = ""
     ) {
         val createdBy = auth.currentUser?.uid
 
@@ -138,7 +139,8 @@ class ExpenseViewModel(
                     paidBy = paidBy,
                     participantIds = participantIds,
                     shares = shares,
-                    createdBy = createdBy
+                    createdBy = createdBy,
+                    receiptBase64 = receiptBase64
                 )
                 .fold(
                     onSuccess = { UiState.Success(it) },

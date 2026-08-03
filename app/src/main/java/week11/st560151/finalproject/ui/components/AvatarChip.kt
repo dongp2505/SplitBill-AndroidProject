@@ -45,10 +45,19 @@ private fun initialFor(user: User): Char {
         .uppercaseChar()
 }
 
+private fun decodeAvatarBitmap(value: String): Bitmap? {
+    return try {
+        val bytes = Base64.decode(value, Base64.NO_WRAP)
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+    } catch (_: Exception) {
+        null
+    }
+}
+
 /**
- * A single member's avatar. Pass a negative [overlap] via the caller's Row
- * `Arrangement.spacedBy` (not here) to stack several of these; the white
- * border ring is what keeps overlapped circles visually separated.
+ * Shows [User.photoBase64] when present, else a deterministic color+initial.
+ * To stack several, use a negative `Arrangement.spacedBy` on the caller's
+ * Row — the border ring keeps overlapped circles visually separated.
  */
 @Composable
 fun AvatarChip(
@@ -57,6 +66,8 @@ fun AvatarChip(
     size: Dp = 28.dp,
     borderColor: Color = MaterialTheme.colorScheme.surface
 ) {
+    val bitmap = user.photoBase64.takeIf { it.isNotBlank() }?.let(::decodeAvatarBitmap)
+
     Box(
         modifier = modifier
             .size(size)
@@ -65,20 +76,20 @@ fun AvatarChip(
             .border(2.dp, borderColor, CircleShape),
         contentAlignment = Alignment.Center
     ) {
-        Text(
-            text = initialFor(user).toString(),
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.Bold
-        )
-    }
-}
-
-private fun groupBase64ToBitmap(value: String): Bitmap? {
-    return try {
-        val bytes = Base64.decode(value, Base64.NO_WRAP)
-        BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-    } catch (_: Exception) {
-        null
+        if (bitmap != null) {
+            Image(
+                bitmap = bitmap.asImageBitmap(),
+                contentDescription = "Profile photo",
+                modifier = Modifier.fillMaxSize().clip(CircleShape),
+                contentScale = ContentScale.Crop
+            )
+        } else {
+            Text(
+                text = initialFor(user).toString(),
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Bold
+            )
+        }
     }
 }
 
@@ -89,7 +100,7 @@ private fun groupBase64ToBitmap(value: String): Bitmap? {
  */
 @Composable
 fun GroupAvatar(group: Group?, size: Dp) {
-    val bitmap = group?.avatarBase64?.takeIf { it.isNotBlank() }?.let(::groupBase64ToBitmap)
+    val bitmap = group?.avatarBase64?.takeIf { it.isNotBlank() }?.let(::decodeAvatarBitmap)
     Box(
         modifier = Modifier.size(size).clip(CircleShape).background(MaterialTheme.colorScheme.tertiary),
         contentAlignment = Alignment.Center

@@ -15,9 +15,6 @@ class SettlementRepository(
         NotificationRepository()
 ) {
 
-    /*
-     * Find one registered user by email address.
-     */
     suspend fun findUserByEmail(
         email: String
     ): Result<User> {
@@ -69,9 +66,6 @@ class SettlementRepository(
         }
     }
 
-    /*
-     * Save a completed settlement, then send notifications.
-     */
     suspend fun saveSettlement(
         groupId: String,
         payer: User,
@@ -117,10 +111,6 @@ class SettlementRepository(
                 )
             }
 
-            /*
-             * Confirm that the group exists and that the
-             * current user belongs to the group.
-             */
             val groupDocument = firestore
                 .collection("groups")
                 .document(groupId)
@@ -220,10 +210,7 @@ class SettlementRepository(
                         System.currentTimeMillis()
                 )
 
-            /*
-             * This write must match the /settlements
-             * Firestore security rule.
-             */
+            // Must match the /settlements rule's field allowlist exactly.
             settlementDocument
                 .set(settlement)
                 .await()
@@ -235,10 +222,6 @@ class SettlementRepository(
                     amount
                 )
 
-            /*
-             * Notify every group member except the
-             * user who completed the settlement.
-             */
             notificationRepository
                 .createNotifications(
                     recipientIds = memberIds,
