@@ -245,14 +245,22 @@ fun AppNavGraph(
                 },
 
                 onSignOutClick = {
-                    authViewModel.logout()
 
                     navController.navigate(
                         Screen.Start.route
                     ) {
-                        popUpTo(0)
+                        popUpTo(
+                            navController.graph.startDestinationId
+                        ) {
+                            inclusive = true
+                        }
+
                         launchSingleTop = true
+                        restoreState = false
                     }
+
+
+                    authViewModel.logout()
                 }
             )
         }

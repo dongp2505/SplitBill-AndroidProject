@@ -3,10 +3,12 @@ package week11.st560151.finalproject.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.firebase.auth.FirebaseAuth
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.launch
 import week11.st560151.finalproject.data.model.AppNotification
 import week11.st560151.finalproject.data.repository.NotificationRepository
@@ -43,22 +45,20 @@ class NotificationViewModel(
         observeCurrentUserNotifications()
     }
 
-    /*
-     * Reads only documents where recipientId matches
-     * the signed-in Firebase Authentication UID.
-     */
     fun observeCurrentUserNotifications() {
-        val currentUserId =
-            auth.currentUser?.uid.orEmpty()
-
         notificationJob?.cancel()
+
+        val currentUserId =
+            auth.currentUser
+                ?.uid
+                .orEmpty()
 
         if (currentUserId.isBlank()) {
             _notifications.value =
                 emptyList()
 
             _errorMessage.value =
-                "User is not signed in."
+                null
 
             return
         }
@@ -69,7 +69,38 @@ class NotificationViewModel(
                     .observeNotifications(
                         currentUserId
                     )
-                    .collect { notificationList ->
+                    .catch { exception ->
+                        /*
+                         * Cancellation is normal when navigating
+                         * away or signing out.
+                         */
+                        if (
+                            exception
+                                    is CancellationException
+                        ) {
+                            throw exception
+                        }
+
+                        /*
+                         * Do not crash when Firebase Auth changes
+                         * while the listener is closing.
+                         */
+                        if (
+                            auth.currentUser == null
+                        ) {
+                            _notifications.value =
+                                emptyList()
+
+                            _errorMessage.value =
+                                null
+                        } else {
+                            _errorMessage.value =
+                                exception.message
+                                    ?: "Unable to load notifications."
+                        }
+                    }
+                    .collect {
+                            notificationList ->
 
                         _notifications.value =
                             notificationList
@@ -77,16 +108,6 @@ class NotificationViewModel(
                         _errorMessage.value =
                             null
                     }
-            }
-
-        notificationJob
-            ?.invokeOnCompletion { error ->
-
-                if (error != null) {
-                    _errorMessage.value =
-                        error.message
-                            ?: "Unable to load notifications."
-                }
             }
     }
 
@@ -97,16 +118,23 @@ class NotificationViewModel(
             return
         }
 
+        if (auth.currentUser == null) {
+            return
+        }
+
         viewModelScope.launch {
             repository
                 .markAsRead(
                     notificationId
                 )
-                .onFailure { exception ->
+                .onFailure {
+                        exception ->
 
-                    _errorMessage.value =
-                        exception.message
-                            ?: "Unable to update notification."
+                    if (auth.currentUser != null) {
+                        _errorMessage.value =
+                            exception.message
+                                ?: "Unable to update notification."
+                    }
                 }
         }
     }
@@ -117,6 +145,8 @@ class NotificationViewModel(
 
     override fun onCleared() {
         notificationJob?.cancel()
+        notificationJob = null
+
         super.onCleared()
     }
 }
