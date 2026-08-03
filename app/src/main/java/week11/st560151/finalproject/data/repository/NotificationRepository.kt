@@ -21,6 +21,10 @@ class NotificationRepository(
             "notifications"
     }
 
+    /*
+     * Creates one notification document for every
+     * selected recipient.
+     */
     suspend fun createNotifications(
         recipientIds: List<String>,
         groupId: String,
@@ -56,8 +60,7 @@ class NotificationRepository(
             val batch =
                 firestore.batch()
 
-            recipients.forEach {
-                    recipientId ->
+            recipients.forEach { recipientId ->
 
                 val document =
                     firestore
@@ -67,8 +70,7 @@ class NotificationRepository(
                 val notification =
                     AppNotification(
                         id = document.id,
-                        recipientId =
-                            recipientId,
+                        recipientId = recipientId,
                         groupId = groupId,
                         type = type,
                         title = title,
@@ -88,7 +90,7 @@ class NotificationRepository(
 
             Log.d(
                 TAG,
-                "Notifications created."
+                "Created ${recipients.size} notifications."
             )
 
             Result.success(Unit)
@@ -104,6 +106,14 @@ class NotificationRepository(
         }
     }
 
+    /*
+     * Reads only notifications belonging to the
+     * currently signed-in Firebase UID.
+     *
+     * This query is required by the Firestore rule:
+     *
+     * resource.data.recipientId == request.auth.uid
+     */
     fun observeNotifications(
         userId: String
     ): Flow<List<AppNotification>> =
@@ -115,7 +125,7 @@ class NotificationRepository(
                 return@callbackFlow
             }
 
-            val listener =
+            val listenerRegistration =
                 firestore
                     .collection(COLLECTION)
                     .whereEqualTo(
@@ -127,11 +137,17 @@ class NotificationRepository(
                             error ->
 
                         if (error != null) {
+                            Log.e(
+                                TAG,
+                                "Notification listener failed for UID: $userId",
+                                error
+                            )
+
                             close(error)
                             return@addSnapshotListener
                         }
 
-                        val notifications =
+                        val notificationList =
                             snapshot
                                 ?.documents
                                 ?.mapNotNull {
@@ -142,8 +158,7 @@ class NotificationRepository(
                                             AppNotification::class.java
                                         )
                                         ?.copy(
-                                            id =
-                                                document.id
+                                            id = document.id
                                         )
                                 }
                                 ?.sortedByDescending {
@@ -152,14 +167,18 @@ class NotificationRepository(
                                 }
                                 ?: emptyList()
 
-                        trySend(notifications)
+                        trySend(notificationList)
                     }
 
             awaitClose {
-                listener.remove()
+                listenerRegistration.remove()
             }
         }
 
+    /*
+     * The recipient may mark only their own
+     * notification as read.
+     */
     suspend fun markAsRead(
         notificationId: String
     ): Result<Unit> {
@@ -182,29 +201,12 @@ class NotificationRepository(
             Result.success(Unit)
 
         } catch (exception: Exception) {
-            Result.failure(exception)
-        }
-    }
+            Log.e(
+                TAG,
+                "Unable to mark notification as read.",
+                exception
+            )
 
-    suspend fun deleteNotification(
-        notificationId: String
-    ): Result<Unit> {
-        return try {
-            if (notificationId.isBlank()) {
-                throw IllegalArgumentException(
-                    "Notification ID is missing."
-                )
-            }
-
-            firestore
-                .collection(COLLECTION)
-                .document(notificationId)
-                .delete()
-                .await()
-
-            Result.success(Unit)
-
-        } catch (exception: Exception) {
             Result.failure(exception)
         }
     }

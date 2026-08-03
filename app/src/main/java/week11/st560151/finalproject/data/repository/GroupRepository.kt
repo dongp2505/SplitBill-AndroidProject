@@ -396,30 +396,122 @@ class GroupRepository(
             .update("avatarBase64", avatarBase64).await()
     }
 
-    suspend fun addMemberByEmail(groupId: String, email: String): Result<User> = runCatching {
-        val normalizedEmail = email.trim().lowercase()
-        require(groupId.isNotBlank()) { "Group ID is missing." }
-        require(normalizedEmail.isNotBlank()) { "Enter a member email." }
+    suspend fun addMemberByEmail(
+        groupId: String,
+        email: String
+    ): Result<User> {
+        return try {
+            val normalizedEmail =
+                email.trim().lowercase()
 
-        val result = userRepository.findUserByEmail(normalizedEmail)
-        val user = result.getOrElse { throw it }
-        require(user.uid.isNotBlank()) { "The user UID is missing." }
+            require(groupId.isNotBlank()) {
+                "Group ID is missing."
+            }
 
-        val group = getGroup(groupId).getOrElse { throw it }
-        require(user.uid !in group.memberIds) { "This user is already a member." }
+            require(normalizedEmail.isNotBlank()) {
+                "Enter a member email."
+            }
 
-        firestore.collection("groups").document(groupId)
-            .update("memberIds", FieldValue.arrayUnion(user.uid)).await()
+            /*
+             * Find the registered user by email.
+             */
+            val userResult =
+                userRepository.findUserByEmail(
+                    normalizedEmail
+                )
 
-        notificationRepository.createNotifications(
-            recipientIds = listOf(user.uid),
-            groupId = groupId,
-            type = "MEMBER_ADDED",
-            title = "Added to group",
-            message = "You were added to ${group.name}",
-            excludeUserId = null
-        )
-        user
+            val user =
+                userResult.getOrElse {
+                    throw it
+                }
+
+            require(user.uid.isNotBlank()) {
+                "The user UID is missing."
+            }
+
+            /*
+             * Load the current group.
+             */
+            val group =
+                getGroup(groupId).getOrElse {
+                    throw it
+                }
+
+            require(
+                user.uid !in group.memberIds
+            ) {
+                "This user is already a member."
+            }
+
+            /*
+             * Add the member first.
+             *
+             * The await() is required because Firestore
+             * notification rules verify that the recipient
+             * is already inside memberIds.
+             */
+            firestore
+                .collection("groups")
+                .document(groupId)
+                .update(
+                    "memberIds",
+                    FieldValue.arrayUnion(
+                        user.uid
+                    )
+                )
+                .await()
+
+            Log.d(
+                TAG,
+                "Member ${user.uid} added to group $groupId"
+            )
+
+            /*
+             * Create the in-app notification only after
+             * the member update has completed.
+             *
+             * A notification failure does not undo the
+             * successful member addition.
+             */
+            val notificationResult =
+                notificationRepository
+                    .createNotifications(
+                        recipientIds =
+                            listOf(user.uid),
+                        groupId = groupId,
+                        type = "MEMBER_ADDED",
+                        title = "Added to group",
+                        message =
+                            "You were added to ${group.name}",
+                        excludeUserId = null
+                    )
+
+            notificationResult
+                .onSuccess {
+                    Log.d(
+                        TAG,
+                        "Member-added notification created."
+                    )
+                }
+                .onFailure { exception ->
+                    Log.e(
+                        TAG,
+                        "Member added, but notification failed.",
+                        exception
+                    )
+                }
+
+            Result.success(user)
+
+        } catch (exception: Exception) {
+            Log.e(
+                TAG,
+                "Unable to add member.",
+                exception
+            )
+
+            Result.failure(exception)
+        }
     }
 
     suspend fun removeMember(groupId: String, memberId: String): Result<Unit> = runCatching {

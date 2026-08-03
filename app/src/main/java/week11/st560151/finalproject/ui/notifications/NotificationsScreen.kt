@@ -5,10 +5,12 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -20,9 +22,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.GroupAdd
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Payments
+import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -35,6 +37,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import week11.st560151.finalproject.data.model.AppNotification
@@ -90,47 +93,46 @@ fun NotificationsScreen(
                     MaterialTheme.colorScheme.background
                 )
                 .padding(paddingValues)
-                .padding(horizontal = 20.dp)
         ) {
             Text(
                 text = "Notifications",
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(
-                    top = 24.dp,
-                    bottom = 18.dp
+                    start = 20.dp,
+                    end = 20.dp,
+                    top = 22.dp,
+                    bottom = 14.dp
                 )
             )
 
-            /*
-             * Display an error from Firestore when one occurs.
-             */
             if (!errorMessage.isNullOrBlank()) {
                 Text(
                     text = errorMessage.orEmpty(),
                     color = MaterialTheme.colorScheme.error,
                     style = MaterialTheme.typography.bodyMedium,
                     modifier = Modifier.padding(
-                        bottom = 12.dp
+                        start = 20.dp,
+                        end = 20.dp,
+                        bottom = 10.dp
                     )
                 )
             }
 
-            /*
-             * Empty notification state.
-             */
             if (notifications.isEmpty()) {
                 EmptyNotificationsContent(
                     modifier = Modifier.weight(1f)
                 )
             } else {
-                /*
-                 * Notification list.
-                 */
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(
+                        start = 16.dp,
+                        end = 16.dp,
+                        bottom = 20.dp
+                    ),
                     verticalArrangement = Arrangement.spacedBy(
-                        12.dp
+                        8.dp
                     )
                 ) {
                     items(
@@ -139,32 +141,22 @@ fun NotificationsScreen(
                             notification.id
                         }
                     ) { notification ->
-
                         NotificationCard(
                             notification = notification,
                             onClick = {
-                                /*
-                                 * Mark the selected notification as read.
-                                 */
                                 notificationViewModel.markAsRead(
                                     notification.id
                                 )
 
-                                /*
-                                 * Open the group connected to this notification.
-                                 */
-                                if (notification.groupId.isNotBlank()) {
+                                if (
+                                    notification.groupId
+                                        .isNotBlank()
+                                ) {
                                     onNotificationClick(
                                         notification.groupId
                                     )
                                 }
                             }
-                        )
-                    }
-
-                    item {
-                        Spacer(
-                            modifier = Modifier.size(12.dp)
                         )
                     }
                 }
@@ -182,29 +174,39 @@ private fun EmptyNotificationsContent(
         contentAlignment = Alignment.Center
     ) {
         Column(
-            horizontalAlignment = Alignment.CenterHorizontally
+            horizontalAlignment =
+                Alignment.CenterHorizontally
         ) {
-            Icon(
-                imageVector = Icons.Default.Groups,
-                contentDescription = null,
-                tint = MaterialTheme
-                    .colorScheme
-                    .onSurfaceVariant,
-                modifier = Modifier.size(56.dp)
-            )
+            Box(
+                modifier = Modifier
+                    .size(70.dp)
+                    .clip(CircleShape)
+                    .background(
+                        MaterialTheme.colorScheme
+                            .primaryContainer
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Groups,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme
+                        .onPrimaryContainer,
+                    modifier = Modifier.size(34.dp)
+                )
+            }
 
             Text(
                 text = "No notifications yet",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.padding(top = 14.dp)
+                modifier = Modifier.padding(top = 16.dp)
             )
 
             Text(
                 text = "Group and settlement updates will appear here.",
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme
-                    .colorScheme
+                color = MaterialTheme.colorScheme
                     .onSurfaceVariant,
                 modifier = Modifier.padding(top = 6.dp)
             )
@@ -221,10 +223,7 @@ private fun NotificationCard(
         if (notification.isRead) {
             MaterialTheme.colorScheme.surface
         } else {
-            MaterialTheme
-                .colorScheme
-                .primaryContainer
-                .copy(alpha = 0.45f)
+            MaterialTheme.colorScheme.surfaceVariant
         }
 
     Card(
@@ -233,35 +232,34 @@ private fun NotificationCard(
             .clickable {
                 onClick()
             },
-        shape = RoundedCornerShape(18.dp),
+        shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
             containerColor = containerColor
         ),
         elevation = CardDefaults.cardElevation(
             defaultElevation =
                 if (notification.isRead) {
-                    1.dp
+                    0.dp
                 } else {
-                    3.dp
+                    1.dp
                 }
         )
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(
+                    horizontal = 14.dp,
+                    vertical = 12.dp
+                ),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            /*
-             * Notification icon.
-             */
             Box(
                 modifier = Modifier
-                    .size(48.dp)
+                    .size(44.dp)
                     .clip(CircleShape)
                     .background(
-                        MaterialTheme
-                            .colorScheme
+                        MaterialTheme.colorScheme
                             .primaryContainer
                     ),
                 contentAlignment = Alignment.Center
@@ -271,68 +269,70 @@ private fun NotificationCard(
                         notification.type
                     ),
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(26.dp)
+                    tint = MaterialTheme.colorScheme
+                        .onPrimaryContainer,
+                    modifier = Modifier.size(23.dp)
                 )
             }
 
             Spacer(
-                modifier = Modifier.width(14.dp)
+                modifier = Modifier.width(12.dp)
             )
 
-            /*
-             * Notification text.
-             */
             Column(
                 modifier = Modifier.weight(1f)
             ) {
-                Text(
-                    text = notification.title,
-                    style = MaterialTheme
-                        .typography
-                        .titleMedium,
-                    fontWeight =
-                        if (notification.isRead) {
-                            FontWeight.Medium
-                        } else {
-                            FontWeight.Bold
-                        }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement =
+                        Arrangement.SpaceBetween,
+                    verticalAlignment =
+                        Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = notification.title,
+                        style = MaterialTheme.typography
+                            .titleSmall,
+                        fontWeight =
+                            if (notification.isRead) {
+                                FontWeight.Medium
+                            } else {
+                                FontWeight.Bold
+                            },
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+
+                    Spacer(
+                        modifier = Modifier.width(8.dp)
+                    )
+
+                    Text(
+                        text = formatNotificationTime(
+                            notification.createdAt
+                        ),
+                        style = MaterialTheme.typography
+                            .labelSmall,
+                        color = MaterialTheme.colorScheme
+                            .onSurfaceVariant
+                    )
+                }
+
+                Spacer(
+                    modifier = Modifier.height(3.dp)
                 )
 
                 Text(
                     text = notification.message,
-                    style = MaterialTheme
-                        .typography
-                        .bodyMedium,
-                    color = MaterialTheme
-                        .colorScheme
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme
                         .onSurfaceVariant,
-                    modifier = Modifier.padding(
-                        top = 3.dp
-                    )
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
                 )
-
-                if (notification.createdAt > 0L) {
-                    Text(
-                        text = formatNotificationDate(
-                            notification.createdAt
-                        ),
-                        style = MaterialTheme
-                            .typography
-                            .labelSmall,
-                        color = MaterialTheme
-                            .colorScheme
-                            .onSurfaceVariant,
-                        modifier = Modifier.padding(
-                            top = 7.dp
-                        )
-                    )
-                }
             }
 
-            /*
-             * Blue dot for unread notifications.
-             */
             if (!notification.isRead) {
                 Spacer(
                     modifier = Modifier.width(10.dp)
@@ -340,7 +340,7 @@ private fun NotificationCard(
 
                 Box(
                     modifier = Modifier
-                        .size(10.dp)
+                        .size(8.dp)
                         .clip(CircleShape)
                         .background(
                             MaterialTheme.colorScheme.primary
@@ -351,9 +351,6 @@ private fun NotificationCard(
     }
 }
 
-/*
- * Selects the correct icon based on notification type.
- */
 private fun notificationIcon(
     notificationType: String
 ): ImageVector {
@@ -362,8 +359,14 @@ private fun notificationIcon(
             Icons.Default.Payments
         }
 
-        "MEMBER_JOINED" -> {
+        "MEMBER_JOINED",
+        "MEMBER_ADDED",
+        "GROUP_CREATED" -> {
             Icons.Default.GroupAdd
+        }
+
+        "EXPENSE_ADDED" -> {
+            Icons.Default.ReceiptLong
         }
 
         else -> {
@@ -372,21 +375,52 @@ private fun notificationIcon(
     }
 }
 
-/*
- * Converts the Firestore timestamp into readable text.
- *
- * Example:
- * Jul 29, 9:25 PM
- */
-private fun formatNotificationDate(
+private fun formatNotificationTime(
     timestamp: Long
 ): String {
-    val formatter = SimpleDateFormat(
-        "MMM d, h:mm a",
-        Locale.getDefault()
-    )
+    if (timestamp <= 0L) {
+        return ""
+    }
 
-    return formatter.format(
-        Date(timestamp)
-    )
+    val now =
+        System.currentTimeMillis()
+
+    val difference =
+        now - timestamp
+
+    val minute =
+        60_000L
+
+    val hour =
+        60 * minute
+
+    val day =
+        24 * hour
+
+    return when {
+        difference < minute -> {
+            "Now"
+        }
+
+        difference < hour -> {
+            "${difference / minute}m"
+        }
+
+        difference < day -> {
+            "${difference / hour}h"
+        }
+
+        difference < 7 * day -> {
+            "${difference / day}d"
+        }
+
+        else -> {
+            SimpleDateFormat(
+                "MMM d",
+                Locale.getDefault()
+            ).format(
+                Date(timestamp)
+            )
+        }
+    }
 }

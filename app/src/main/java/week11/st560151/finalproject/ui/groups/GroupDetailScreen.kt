@@ -335,42 +335,70 @@ private fun PositionText(
     currentUserId: String
 ) {
     if (balancesState is UiState.Error) {
-        ErrorText(message = balancesState.message)
+        ErrorText(
+            message = balancesState.message
+        )
         return
     }
 
-    val balance = (balancesState as? UiState.Success<Map<String, Double>>)
-        ?.data
-        ?.get(currentUserId)
+    val balance =
+        (
+                balancesState as?
+                        UiState.Success<Map<String, Double>>
+                )
+            ?.data
+            ?.get(currentUserId)
 
     when {
         balance == null -> {
-            Text(text = "Loading…", color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-
-        balance > 0.01 -> {
             Text(
-                text = "You are owed ${formatMoney(balance)}",
-                color = MaterialTheme.colorScheme.tertiary,
-                fontWeight = FontWeight.Bold,
-                style = MaterialTheme.typography.titleMedium
+                text = "Loading…",
+                color =
+                    MaterialTheme.colorScheme
+                        .onSurfaceVariant
             )
         }
 
-        balance < -0.01 -> {
+        balance > 0.0 -> {
             Text(
-                text = "You owe ${formatMoney(-balance)}",
-                color = MaterialTheme.colorScheme.error,
+                text =
+                    "You are owed " +
+                            "+${formatMoney(balance)}",
+                color =
+                    MaterialTheme.colorScheme
+                        .tertiary,
                 fontWeight = FontWeight.Bold,
-                style = MaterialTheme.typography.titleMedium
+                style =
+                    MaterialTheme.typography
+                        .titleMedium
+            )
+        }
+
+        balance < 0.0 -> {
+            Text(
+                text =
+                    "You owe " +
+                            "-${formatMoney(-balance)}",
+                color =
+                    MaterialTheme.colorScheme
+                        .error,
+                fontWeight = FontWeight.Bold,
+                style =
+                    MaterialTheme.typography
+                        .titleMedium
             )
         }
 
         else -> {
             Text(
-                text = "You're settled up",
+                text = "Balance ${formatMoney(0.0)}",
+                color =
+                    MaterialTheme.colorScheme
+                        .onSurfaceVariant,
                 fontWeight = FontWeight.Bold,
-                style = MaterialTheme.typography.titleMedium
+                style =
+                    MaterialTheme.typography
+                        .titleMedium
             )
         }
     }
@@ -538,31 +566,44 @@ private fun BalancesTab(
 }
 
 @Composable
-private fun NetPositionAmount(balance: Double) {
-    when {
-        balance > 0.01 -> {
-            Text(
-                text = "is owed ${formatMoney(balance)}",
-                color = MaterialTheme.colorScheme.tertiary,
-                fontWeight = FontWeight.Bold
-            )
+private fun NetPositionAmount(
+    balance: Double
+) {
+    val displayAmount =
+        when {
+            balance > 0.0 -> {
+                "+${formatMoney(balance)}"
+            }
+
+            balance < 0.0 -> {
+                "-${formatMoney(-balance)}"
+            }
+
+            else -> {
+                formatMoney(0.0)
+            }
         }
 
-        balance < -0.01 -> {
-            Text(
-                text = "owes ${formatMoney(-balance)}",
-                color = MaterialTheme.colorScheme.error,
-                fontWeight = FontWeight.Bold
-            )
+    val amountColor =
+        when {
+            balance > 0.0 -> {
+                MaterialTheme.colorScheme.tertiary
+            }
+
+            balance < 0.0 -> {
+                MaterialTheme.colorScheme.error
+            }
+
+            else -> {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            }
         }
 
-        else -> {
-            Text(
-                text = "settled up",
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-    }
+    Text(
+        text = displayAmount,
+        color = amountColor,
+        fontWeight = FontWeight.Bold
+    )
 }
 
 @Composable
