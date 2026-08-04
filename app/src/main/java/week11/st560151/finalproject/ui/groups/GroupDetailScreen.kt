@@ -69,6 +69,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -271,6 +272,7 @@ fun GroupDetailScreen(
                 GroupTab.Activity -> {
                     ActivityTab(
                         expensesState = expensesState,
+                        membersById = membersById,
                         onExpenseClick = { expenseBeingEdited = it }
                     )
                 }
@@ -429,6 +431,7 @@ private enum class ExpenseSortOption(val label: String) {
 @Composable
 private fun ActivityTab(
     expensesState: UiState<List<Expense>>,
+    membersById: Map<String, User>,
     onExpenseClick: (Expense) -> Unit
 ) {
     when (expensesState) {
@@ -574,6 +577,7 @@ private fun ActivityTab(
 
                     ExpenseRow(
                         expense = expense,
+                        membersById = membersById,
                         onClick = { onExpenseClick(expense) }
                     )
                 }
@@ -746,41 +750,143 @@ private fun NetPositionAmount(
 @Composable
 private fun ExpenseRow(
     expense: Expense,
+    membersById: Map<String, User>,
     onClick: () -> Unit
 ) {
+    /*
+     * Resolve the payer from the paidBy field.
+     *
+     * Normally paidBy stores a Firebase UID. The email
+     * fallback also supports older expense documents.
+     */
+    val payerByUid =
+        membersById[expense.paidBy]
+
+    val payerByEmail =
+        membersById.values.firstOrNull { user ->
+            user.email.equals(
+                expense.paidBy,
+                ignoreCase = true
+            )
+        }
+
+    val payer =
+        payerByUid ?: payerByEmail
+
+    val payerName =
+        when {
+            payer == null -> {
+                "Unknown"
+            }
+
+            payer.displayName.isNotBlank() -> {
+                payer.displayName
+            }
+
+            payer.email.isNotBlank() -> {
+                payer.email
+            }
+
+            else -> {
+                "Unknown"
+            }
+        }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
             .padding(vertical = 12.dp),
-        horizontalArrangement = Arrangement.SpaceBetween
+        verticalAlignment = Alignment.Top
     ) {
-        Column {
+        /*
+         * LEFT SIDE:
+         * Description, category, and receipt icon.
+         */
+        Column(
+            modifier = Modifier.weight(1f)
+        ) {
             Text(
                 text = expense.description,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
             )
 
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Text(
                     text = expense.category,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = MaterialTheme.typography.bodySmall
+                    color =
+                        MaterialTheme.colorScheme.onSurfaceVariant,
+                    style =
+                        MaterialTheme.typography.bodySmall,
+                    maxLines = 1,
+                    overflow =
+                        androidx.compose.ui.text.style.TextOverflow.Ellipsis
                 )
 
                 if (expense.receiptBase64.isNotBlank()) {
-                    Spacer(modifier = Modifier.width(6.dp))
+                    Spacer(
+                        modifier = Modifier.width(6.dp)
+                    )
+
                     Icon(
-                        imageVector = Icons.Default.ReceiptLong,
-                        contentDescription = "Has receipt",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(14.dp)
+                        imageVector =
+                            Icons.Default.ReceiptLong,
+                        contentDescription =
+                            "Has receipt",
+                        tint =
+                            MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier =
+                            Modifier.size(14.dp)
                     )
                 }
             }
         }
 
-        Text(text = formatMoney(expense.amount), fontWeight = FontWeight.Bold)
+        Spacer(
+            modifier = Modifier.width(12.dp)
+        )
+
+        /*
+         * RIGHT SIDE:
+         * Amount with payer name centered below it.
+         */
+        Column(
+            modifier = Modifier.width(190.dp),
+            horizontalAlignment =
+                Alignment.CenterHorizontally
+        ) {
+            Text(
+                text =
+                    formatMoney(expense.amount),
+                fontWeight =
+                    FontWeight.Bold,
+                textAlign =
+                    TextAlign.Center,
+                maxLines = 1
+            )
+
+            Spacer(
+                modifier = Modifier.height(3.dp)
+            )
+
+            Text(
+                text =
+                    "Paid by $payerName",
+                color =
+                    MaterialTheme.colorScheme.onSurfaceVariant,
+                style =
+                    MaterialTheme.typography.bodySmall,
+                textAlign =
+                    TextAlign.Center,
+                maxLines = 1,
+                overflow =
+                    androidx.compose.ui.text.style.TextOverflow.Ellipsis
+            )
+        }
     }
 }
 
