@@ -1,5 +1,6 @@
 package week11.st560151.finalproject.ui.expenses
 
+import androidx.compose.animation.AnimatedContent
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -349,47 +350,51 @@ fun AddExpenseScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            if (isEqualSplit) {
-                val count = selectedParticipantIds.size.coerceAtLeast(1)
-                val each = amount / count
+            AnimatedContent(targetState = isEqualSplit, label = "splitMode") { equalSplit ->
+                if (equalSplit) {
+                    val count = selectedParticipantIds.size.coerceAtLeast(1)
+                    val each = amount / count
 
-                Text(
-                    text = "Split %d ways · $%.2f each".format(count, each),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            } else {
-                members
-                    .filter { selectedParticipantIds.contains(it.uid) }
-                    .forEach { user ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(nameFor(user))
+                    Text(
+                        text = "Split %d ways · $%.2f each".format(count, each),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else {
+                    Column {
+                        members
+                            .filter { selectedParticipantIds.contains(it.uid) }
+                            .forEach { user ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(nameFor(user))
 
-                            OutlinedTextField(
-                                value = customAmounts[user.uid] ?: "",
-                                onValueChange = { value ->
-                                    customAmounts = customAmounts + (user.uid to value)
-                                },
-                                singleLine = true,
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                                modifier = Modifier.width(110.dp)
-                            )
-                        }
+                                    OutlinedTextField(
+                                        value = customAmounts[user.uid] ?: "",
+                                        onValueChange = { value ->
+                                            customAmounts = customAmounts + (user.uid to value)
+                                        },
+                                        singleLine = true,
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                        modifier = Modifier.width(110.dp)
+                                    )
+                                }
+                            }
+
+                        val customTotal = customAmounts.values.sumOf { it.toDoubleOrNull() ?: 0.0 }
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        Text(
+                            text = "Custom total: $%.2f of $%.2f".format(customTotal, amount),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
-
-                val customTotal = customAmounts.values.sumOf { it.toDoubleOrNull() ?: 0.0 }
-
-                Spacer(modifier = Modifier.height(4.dp))
-
-                Text(
-                    text = "Custom total: $%.2f of $%.2f".format(customTotal, amount),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                }
             }
 
             Spacer(modifier = Modifier.height(20.dp))
@@ -401,66 +406,70 @@ fun AddExpenseScreen(
                 receiptBase64?.let(::receiptBase64ToBitmap)
             }
 
-            if (receiptBitmap == null) {
-                SecondaryButton(
-                    text = "Add receipt photo",
-                    onClick = {
-                        receiptPickerLauncher.launch(
-                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                        )
-                    }
-                )
-            } else {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Image(
-                        bitmap = receiptBitmap.asImageBitmap(),
-                        contentDescription = "Receipt photo",
-                        modifier = Modifier
-                            .size(72.dp)
-                            .clip(RoundedCornerShape(10.dp))
-                            .clickable { isReceiptEnlarged = true },
-                        contentScale = ContentScale.Crop
+            AnimatedContent(targetState = receiptBitmap, label = "addExpenseReceipt") { bitmap ->
+                if (bitmap == null) {
+                    SecondaryButton(
+                        text = "Add receipt photo",
+                        onClick = {
+                            receiptPickerLauncher.launch(
+                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                            )
+                        }
                     )
-
-                    Spacer(modifier = Modifier.width(12.dp))
-
-                    TextButton(onClick = { receiptBase64 = null }) {
-                        Text("Remove", color = MaterialTheme.colorScheme.error)
-                    }
-                }
-
-                if (isReceiptEnlarged) {
-                    Dialog(
-                        onDismissRequest = { isReceiptEnlarged = false },
-                        properties = DialogProperties(usePlatformDefaultWidth = false)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .background(Color.Black.copy(alpha = 0.9f))
-                                .clickable { isReceiptEnlarged = false },
-                            contentAlignment = Alignment.Center
-                        ) {
+                } else {
+                    Column {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
                             Image(
-                                bitmap = receiptBitmap.asImageBitmap(),
-                                contentDescription = "Enlarged receipt photo",
+                                bitmap = bitmap.asImageBitmap(),
+                                contentDescription = "Receipt photo",
                                 modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(16.dp),
-                                contentScale = ContentScale.Fit
+                                    .size(72.dp)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .clickable { isReceiptEnlarged = true },
+                                contentScale = ContentScale.Crop
                             )
 
-                            IconButton(
-                                onClick = { isReceiptEnlarged = false },
-                                modifier = Modifier
-                                    .align(Alignment.TopEnd)
-                                    .padding(16.dp)
+                            Spacer(modifier = Modifier.width(12.dp))
+
+                            TextButton(onClick = { receiptBase64 = null }) {
+                                Text("Remove", color = MaterialTheme.colorScheme.error)
+                            }
+                        }
+
+                        if (isReceiptEnlarged) {
+                            Dialog(
+                                onDismissRequest = { isReceiptEnlarged = false },
+                                properties = DialogProperties(usePlatformDefaultWidth = false)
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.Close,
-                                    contentDescription = "Close",
-                                    tint = Color.White
-                                )
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(Color.Black.copy(alpha = 0.9f))
+                                        .clickable { isReceiptEnlarged = false },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Image(
+                                        bitmap = bitmap.asImageBitmap(),
+                                        contentDescription = "Enlarged receipt photo",
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(16.dp),
+                                        contentScale = ContentScale.Fit
+                                    )
+
+                                    IconButton(
+                                        onClick = { isReceiptEnlarged = false },
+                                        modifier = Modifier
+                                            .align(Alignment.TopEnd)
+                                            .padding(16.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Close,
+                                            contentDescription = "Close",
+                                            tint = Color.White
+                                        )
+                                    }
+                                }
                             }
                         }
                     }

@@ -1,5 +1,11 @@
 package week11.st560151.finalproject.ui.notifications
 
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -36,6 +42,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -148,47 +155,50 @@ fun NotificationsScreen(
                 )
             }
 
-            if (notifications.isEmpty()) {
-                EmptyNotificationsContent(
-                    modifier = Modifier.weight(1f)
-                )
-            } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(
-                        start = 16.dp,
-                        end = 16.dp,
-                        bottom = 20.dp
-                    ),
-                    verticalArrangement = Arrangement.spacedBy(
-                        8.dp
+            Crossfade(targetState = notifications.isEmpty(), label = "notificationsEmpty") { isEmpty ->
+                if (isEmpty) {
+                    EmptyNotificationsContent(
+                        modifier = Modifier.weight(1f)
                     )
-                ) {
-                    items(
-                        items = notifications,
-                        key = { notification ->
-                            notification.id
-                        }
-                    ) { notification ->
-                        NotificationCard(
-                            notification = notification,
-                            onClick = {
-                                if (notification.read) {
-                                    if (notification.groupId.isNotBlank()) {
-                                        onNotificationClick(notification.groupId)
-                                    }
-                                } else {
-                                    notificationViewModel.markAsRead(
-                                        notificationId = notification.id,
-                                        onSuccess = {
-                                            if (notification.groupId.isNotBlank()) {
-                                                onNotificationClick(notification.groupId)
-                                            }
-                                        }
-                                    )
-                                }
-                            }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(
+                            start = 16.dp,
+                            end = 16.dp,
+                            bottom = 20.dp
+                        ),
+                        verticalArrangement = Arrangement.spacedBy(
+                            8.dp
                         )
+                    ) {
+                        items(
+                            items = notifications,
+                            key = { notification ->
+                                notification.id
+                            }
+                        ) { notification ->
+                            NotificationCard(
+                                notification = notification,
+                                onClick = {
+                                    if (notification.read) {
+                                        if (notification.groupId.isNotBlank()) {
+                                            onNotificationClick(notification.groupId)
+                                        }
+                                    } else {
+                                        notificationViewModel.markAsRead(
+                                            notificationId = notification.id,
+                                            onSuccess = {
+                                                if (notification.groupId.isNotBlank()) {
+                                                    onNotificationClick(notification.groupId)
+                                                }
+                                            }
+                                        )
+                                    }
+                                },
+                                modifier = Modifier.animateItem()
+                            )
+                        }
                     }
                 }
             }
@@ -248,7 +258,8 @@ private fun EmptyNotificationsContent(
 @Composable
 private fun NotificationCard(
     notification: AppNotification,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val containerColor =
         if (notification.read) {
@@ -258,7 +269,7 @@ private fun NotificationCard(
         }
 
     Card(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .clickable {
                 onClick()
@@ -365,9 +376,22 @@ private fun NotificationCard(
                     modifier = Modifier.width(10.dp)
                 )
 
+                val unreadDotTransition = rememberInfiniteTransition(label = "unreadDot")
+
+                val unreadDotScale by unreadDotTransition.animateFloat(
+                    initialValue = 1f,
+                    targetValue = 1.4f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(durationMillis = 700),
+                        repeatMode = RepeatMode.Reverse
+                    ),
+                    label = "unreadDotScale"
+                )
+
                 Box(
                     modifier = Modifier
                         .size(8.dp)
+                        .scale(unreadDotScale)
                         .clip(CircleShape)
                         .background(
                             MaterialTheme.colorScheme.primary

@@ -1,5 +1,7 @@
 package week11.st560151.finalproject.ui.groups
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -366,57 +368,59 @@ private fun PositionText(
             ?.data
             ?.get(currentUserId)
 
-    when {
-        balance == null -> {
-            Text(
-                text = "Loading…",
-                color =
-                    MaterialTheme.colorScheme
-                        .onSurfaceVariant
-            )
-        }
+    AnimatedContent(targetState = balance, label = "positionText") { value ->
+        when {
+            value == null -> {
+                Text(
+                    text = "Loading…",
+                    color =
+                        MaterialTheme.colorScheme
+                            .onSurfaceVariant
+                )
+            }
 
-        balance > 0.0 -> {
-            Text(
-                text =
-                    "You are owed " +
-                            "+${formatMoney(balance)}",
-                color =
-                    MaterialTheme.colorScheme
-                        .tertiary,
-                fontWeight = FontWeight.Bold,
-                style =
-                    MaterialTheme.typography
-                        .titleMedium
-            )
-        }
+            value > 0.0 -> {
+                Text(
+                    text =
+                        "You are owed " +
+                                "+${formatMoney(value)}",
+                    color =
+                        MaterialTheme.colorScheme
+                            .tertiary,
+                    fontWeight = FontWeight.Bold,
+                    style =
+                        MaterialTheme.typography
+                            .titleMedium
+                )
+            }
 
-        balance < 0.0 -> {
-            Text(
-                text =
-                    "You owe " +
-                            "-${formatMoney(-balance)}",
-                color =
-                    MaterialTheme.colorScheme
-                        .error,
-                fontWeight = FontWeight.Bold,
-                style =
-                    MaterialTheme.typography
-                        .titleMedium
-            )
-        }
+            value < 0.0 -> {
+                Text(
+                    text =
+                        "You owe " +
+                                "-${formatMoney(-value)}",
+                    color =
+                        MaterialTheme.colorScheme
+                            .error,
+                    fontWeight = FontWeight.Bold,
+                    style =
+                        MaterialTheme.typography
+                            .titleMedium
+                )
+            }
 
-        else -> {
-            Text(
-                text = "Balance ${formatMoney(0.0)}",
-                color =
-                    MaterialTheme.colorScheme
-                        .onSurfaceVariant,
-                fontWeight = FontWeight.Bold,
-                style =
-                    MaterialTheme.typography
-                        .titleMedium
-            )
+            else -> {
+                Text(
+                    text = "Balance ${formatMoney(0.0)}",
+                    color =
+                        MaterialTheme.colorScheme
+                            .onSurfaceVariant,
+                    fontWeight = FontWeight.Bold,
+                    style =
+                        MaterialTheme.typography
+                            .titleMedium
+                )
+            }
         }
     }
 }
@@ -529,34 +533,36 @@ private fun ActivityTab(
             }
         }
 
-        if (categories.size > 1) {
-            Spacer(modifier = Modifier.height(10.dp))
+        AnimatedVisibility(visible = categories.size > 1) {
+            Column {
+                Spacer(modifier = Modifier.height(10.dp))
 
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                item {
-                    FilterChip(
-                        selected = selectedCategory == null,
-                        onClick = { selectedCategory = null },
-                        label = { Text("All") },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = CategorySelected,
-                            selectedLabelColor = Color.White
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    item {
+                        FilterChip(
+                            selected = selectedCategory == null,
+                            onClick = { selectedCategory = null },
+                            label = { Text("All") },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = CategorySelected,
+                                selectedLabelColor = Color.White
+                            )
                         )
-                    )
-                }
+                    }
 
-                items(categories) { categoryOption ->
-                    FilterChip(
-                        selected = selectedCategory == categoryOption,
-                        onClick = {
-                            selectedCategory = if (selectedCategory == categoryOption) null else categoryOption
-                        },
-                        label = { Text(categoryOption) },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = CategorySelected,
-                            selectedLabelColor = Color.White
+                    items(categories) { categoryOption ->
+                        FilterChip(
+                            selected = selectedCategory == categoryOption,
+                            onClick = {
+                                selectedCategory = if (selectedCategory == categoryOption) null else categoryOption
+                            },
+                            label = { Text(categoryOption) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = CategorySelected,
+                                selectedLabelColor = Color.White
+                            )
                         )
-                    )
+                    }
                 }
             }
         }
@@ -578,7 +584,8 @@ private fun ActivityTab(
                     ExpenseRow(
                         expense = expense,
                         membersById = membersById,
-                        onClick = { onExpenseClick(expense) }
+                        onClick = { onExpenseClick(expense) },
+                        modifier = Modifier.animateItem()
                     )
                 }
             }
@@ -630,7 +637,9 @@ private fun BalancesTab(
             val user = membersById[userId]
 
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .animateItem(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -670,7 +679,9 @@ private fun BalancesTab(
                 Card(
                     colors = CardDefaults.cardColors(containerColor = CardBackground),
                     border = BorderStroke(1.dp, CardBorder),
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .animateItem()
                 ) {
                     Row(
                         modifier = Modifier
@@ -740,18 +751,21 @@ private fun NetPositionAmount(
             }
         }
 
-    Text(
-        text = displayAmount,
-        color = amountColor,
-        fontWeight = FontWeight.Bold
-    )
+    AnimatedContent(targetState = displayAmount, label = "netPositionAmount") { text ->
+        Text(
+            text = text,
+            color = amountColor,
+            fontWeight = FontWeight.Bold
+        )
+    }
 }
 
 @Composable
 private fun ExpenseRow(
     expense: Expense,
     membersById: Map<String, User>,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     /*
      * Resolve the payer from the paidBy field.
@@ -793,7 +807,7 @@ private fun ExpenseRow(
         }
 
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
             .padding(vertical = 12.dp),
@@ -986,87 +1000,91 @@ private fun ExpenseDetailsDialog(
                     receiptBase64.takeIf { it.isNotBlank() }?.let(::receiptBase64ToBitmap)
                 }
 
-                if (receiptBitmap != null) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Image(
-                            bitmap = receiptBitmap.asImageBitmap(),
-                            contentDescription = "Receipt photo",
-                            modifier = Modifier
-                                .size(72.dp)
-                                .clip(RoundedCornerShape(10.dp))
-                                .clickable { isReceiptEnlarged = true },
-                            contentScale = ContentScale.Crop
-                        )
-
-                        if (canEdit) {
-                            Spacer(modifier = Modifier.width(12.dp))
-
-                            Column {
-                                TextButton(onClick = {
-                                    receiptPickerLauncher.launch(
-                                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                                    )
-                                }) {
-                                    Text("Replace")
-                                }
-
-                                TextButton(onClick = { receiptBase64 = "" }) {
-                                    Text("Remove", color = MaterialTheme.colorScheme.error)
-                                }
-                            }
-                        }
-                    }
-
-                    if (isReceiptEnlarged) {
-                        Dialog(
-                            onDismissRequest = { isReceiptEnlarged = false },
-                            properties = DialogProperties(usePlatformDefaultWidth = false)
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .background(Color.Black.copy(alpha = 0.9f))
-                                    .clickable { isReceiptEnlarged = false },
-                                contentAlignment = Alignment.Center
-                            ) {
+                AnimatedContent(targetState = receiptBitmap, label = "expenseReceipt") { bitmap ->
+                    if (bitmap != null) {
+                        Column {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
                                 Image(
-                                    bitmap = receiptBitmap.asImageBitmap(),
-                                    contentDescription = "Enlarged receipt photo",
+                                    bitmap = bitmap.asImageBitmap(),
+                                    contentDescription = "Receipt photo",
                                     modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(16.dp),
-                                    contentScale = ContentScale.Fit
+                                        .size(72.dp)
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .clickable { isReceiptEnlarged = true },
+                                    contentScale = ContentScale.Crop
                                 )
 
-                                IconButton(
-                                    onClick = { isReceiptEnlarged = false },
-                                    modifier = Modifier
-                                        .align(Alignment.TopEnd)
-                                        .padding(16.dp)
+                                if (canEdit) {
+                                    Spacer(modifier = Modifier.width(12.dp))
+
+                                    Column {
+                                        TextButton(onClick = {
+                                            receiptPickerLauncher.launch(
+                                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                            )
+                                        }) {
+                                            Text("Replace")
+                                        }
+
+                                        TextButton(onClick = { receiptBase64 = "" }) {
+                                            Text("Remove", color = MaterialTheme.colorScheme.error)
+                                        }
+                                    }
+                                }
+                            }
+
+                            if (isReceiptEnlarged) {
+                                Dialog(
+                                    onDismissRequest = { isReceiptEnlarged = false },
+                                    properties = DialogProperties(usePlatformDefaultWidth = false)
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Close,
-                                        contentDescription = "Close",
-                                        tint = Color.White
-                                    )
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .background(Color.Black.copy(alpha = 0.9f))
+                                            .clickable { isReceiptEnlarged = false },
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Image(
+                                            bitmap = bitmap.asImageBitmap(),
+                                            contentDescription = "Enlarged receipt photo",
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(16.dp),
+                                            contentScale = ContentScale.Fit
+                                        )
+
+                                        IconButton(
+                                            onClick = { isReceiptEnlarged = false },
+                                            modifier = Modifier
+                                                .align(Alignment.TopEnd)
+                                                .padding(16.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Close,
+                                                contentDescription = "Close",
+                                                tint = Color.White
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }
-                    }
-                } else if (canEdit) {
-                    TextButton(onClick = {
-                        receiptPickerLauncher.launch(
-                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                    } else if (canEdit) {
+                        TextButton(onClick = {
+                            receiptPickerLauncher.launch(
+                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                            )
+                        }) {
+                            Text("Add receipt photo")
+                        }
+                    } else {
+                        Text(
+                            text = "No receipt attached.",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodySmall
                         )
-                    }) {
-                        Text("Add receipt photo")
                     }
-                } else {
-                    Text(
-                        text = "No receipt attached.",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        style = MaterialTheme.typography.bodySmall
-                    )
                 }
 
                 if (!canEdit) {

@@ -1,5 +1,7 @@
 package week11.st560151.finalproject.ui.groups
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -145,44 +147,51 @@ fun GroupsScreen(
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            when (val state = groupsState) {
-                UiState.Idle,
-                UiState.Loading -> {
+            Crossfade(
+                targetState = groupsState is UiState.Loading || groupsState is UiState.Idle,
+                label = "groupsLoading"
+            ) { isLoading ->
+                if (isLoading) {
                     Box(
                         modifier = Modifier.fillMaxSize(),
                         contentAlignment = Alignment.Center
                     ) {
                         CircularProgressIndicator()
                     }
-                }
+                } else {
+                    when (val state = groupsState) {
+                        is UiState.Error -> {
+                            Text(
+                                text = state.message,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
 
-                is UiState.Error -> {
-                    Text(
-                        text = state.message,
-                        color = MaterialTheme.colorScheme.error
-                    )
-                }
-
-                is UiState.Success -> {
-                    if (state.data.isEmpty()) {
-                        Text(
-                            text = "No groups yet. Tap + to create or join one.",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    } else {
-                        LazyColumn(
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            items(items = state.data, key = { it.id }) { group ->
-                                GroupCard(
-                                    group = group,
-                                    members = membersByGroupState[group.id].orEmpty(),
-                                    currentUserId = currentUser?.uid.orEmpty(),
-                                    balance = balancesState[group.id],
-                                    onClick = { onGroupClick(group.id) }
+                        is UiState.Success -> {
+                            if (state.data.isEmpty()) {
+                                Text(
+                                    text = "No groups yet. Tap + to create or join one.",
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
+                            } else {
+                                LazyColumn(
+                                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    items(items = state.data, key = { it.id }) { group ->
+                                        GroupCard(
+                                            group = group,
+                                            members = membersByGroupState[group.id].orEmpty(),
+                                            currentUserId = currentUser?.uid.orEmpty(),
+                                            balance = balancesState[group.id],
+                                            onClick = { onGroupClick(group.id) },
+                                            modifier = Modifier.animateItem()
+                                        )
+                                    }
+                                }
                             }
                         }
+
+                        else -> Unit
                     }
                 }
             }
@@ -196,13 +205,14 @@ private fun GroupCard(
     members: List<User>,
     currentUserId: String,
     balance: Double?,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     Card(
         onClick = onClick,
         colors = CardDefaults.cardColors(containerColor = CardBackground),
         border = BorderStroke(1.dp, CardBorder),
-        modifier = Modifier.fillMaxWidth()
+        modifier = modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
@@ -255,33 +265,35 @@ private fun GroupCard(
 
 @Composable
 private fun BalanceLabel(currentUserId: String, balance: Double?) {
-    when {
-        balance == null -> Unit
+    AnimatedContent(targetState = balance, label = "balanceLabel") { value ->
+        when {
+            value == null -> Unit
 
-        balance > 0.01 -> {
-            Text(
-                text = "You are owed ${formatMoney(balance)}",
-                color = MaterialTheme.colorScheme.tertiary,
-                style = MaterialTheme.typography.bodySmall,
-                fontWeight = FontWeight.Bold
-            )
-        }
+            value > 0.01 -> {
+                Text(
+                    text = "You are owed ${formatMoney(value)}",
+                    color = MaterialTheme.colorScheme.tertiary,
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.Bold
+                )
+            }
 
-        balance < -0.01 -> {
-            Text(
-                text = "You owe ${formatMoney(-balance)}",
-                color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodySmall,
-                fontWeight = FontWeight.Bold
-            )
-        }
+            value < -0.01 -> {
+                Text(
+                    text = "You owe ${formatMoney(-value)}",
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.Bold
+                )
+            }
 
-        else -> {
-            Text(
-                text = "Settled up",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                style = MaterialTheme.typography.bodySmall
-            )
+            else -> {
+                Text(
+                    text = "Settled up",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
         }
     }
 }

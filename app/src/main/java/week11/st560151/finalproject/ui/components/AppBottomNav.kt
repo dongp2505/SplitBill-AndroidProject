@@ -1,5 +1,6 @@
 package week11.st560151.finalproject.ui.components
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.layout.Column
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.GridView
@@ -63,14 +64,19 @@ fun AppBottomNav(
                                     containerColor = MaterialTheme.colorScheme.error,
                                     contentColor = MaterialTheme.colorScheme.onError
                                 ) {
-                                    Text(
-                                        text = if (unreadNotificationCount > 99) {
-                                            "99+"
-                                        } else {
-                                            unreadNotificationCount.toString()
-                                        },
-                                        fontWeight = FontWeight.Bold
-                                    )
+                                    AnimatedContent(
+                                        targetState = unreadNotificationCount,
+                                        label = "unreadBadgeCount"
+                                    ) { count ->
+                                        Text(
+                                            text = if (count > 99) {
+                                                "99+"
+                                            } else {
+                                                count.toString()
+                                            },
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
                                 }
                             }
                         }
